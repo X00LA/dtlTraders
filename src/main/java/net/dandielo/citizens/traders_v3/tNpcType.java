@@ -8,6 +8,8 @@ import java.lang.annotation.Target;
 @Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 public @interface tNpcType {
-	public String name();
-	public String author();
+
+   String name();
+
+   String author();
 }

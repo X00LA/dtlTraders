@@ -1,23 +1,19 @@
 package net.dandielo.citizens.traders_v3.traders.types;
 
-import org.bukkit.Material;
-import org.bukkit.entity.Player;
-import org.bukkit.event.inventory.InventoryClickEvent;
-import org.bukkit.inventory.ItemStack;
-
-import net.dandielo.citizens.traders_v3.tNpcManager;
 import net.dandielo.citizens.traders_v3.TEntityStatus;
+import net.dandielo.citizens.traders_v3.tNpcManager;
 import net.dandielo.citizens.traders_v3.tNpcType;
 import net.dandielo.citizens.traders_v3.core.dB;
 import net.dandielo.citizens.traders_v3.core.events.trader.TraderClickEvent;
 import net.dandielo.citizens.traders_v3.core.events.trader.TraderOpenEvent;
-import net.dandielo.citizens.traders_v3.core.events.trader.TraderTransactionEvent.TransactionResult;
+import net.dandielo.citizens.traders_v3.core.events.trader.TraderTransactionEvent;
 import net.dandielo.citizens.traders_v3.traders.Trader;
 import net.dandielo.citizens.traders_v3.traders.clicks.ClickHandler;
 import net.dandielo.citizens.traders_v3.traders.clicks.InventoryType;
 import net.dandielo.citizens.traders_v3.traders.limits.LimitManager;
-import net.dandielo.citizens.traders_v3.traders.setting.Settings;
 import net.dandielo.citizens.traders_v3.traders.setting.GlobalSettings;
+import net.dandielo.citizens.traders_v3.traders.setting.Settings;
+import net.dandielo.citizens.traders_v3.traders.stock.Stock;
 import net.dandielo.citizens.traders_v3.traders.stock.StockItem;
 import net.dandielo.citizens.traders_v3.traits.TraderTrait;
 import net.dandielo.citizens.traders_v3.traits.WalletTrait;
@@ -25,997 +21,613 @@ import net.dandielo.citizens.traders_v3.utils.items.attributes.Limit;
 import net.dandielo.citizens.traders_v3.utils.items.attributes.Price;
 import net.dandielo.citizens.traders_v3.utils.items.flags.StackPrice;
 import net.dandielo.core.bukkit.NBTUtils;
+import org.bukkit.Material;
+import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.inventory.ItemStack;
 
-@tNpcType(name="server", author="dandielo")
+@tNpcType(
+   name = "server",
+   author = "dandielo"
+)
 public class Server extends Trader {
 
-	public Server(TraderTrait trader, WalletTrait wallet, Player player) {
-		super(trader, wallet, player);
-	}
-
-	@Override
-	public void onLeftClick(ItemStack itemInHand)
-	{
-		//send a event
-		TraderClickEvent e = (TraderClickEvent) new TraderClickEvent(this, player, !GlobalSettings.mmRightToggle(), true).callEvent();
-
-		//check settings
-		if ( !e.isManagerToggling() ) return;
-
-		//check permission
-		if ( !perms.has(player, "dtl.trader.manage") ) return;
-
-		//if air every item in hand is valid
-		ItemStack itemToToggle = GlobalSettings.mmItemToggle();
-		if ( itemInHand != null && !itemToToggle.getType().equals(Material.AIR) )
-		{
-			//if id are different then cancel the event
-			if ( !itemToToggle.getType().equals(itemInHand.getType()) ) return;
-		}
-
-		toggleManageMode("left");
-	}
-
-	@Override
-	public boolean onRightClick(ItemStack itemInHand)
-	{
-		dB.info("-------------------------------------");
-		dB.info("Trader right click");
-		dB.info("-------------------------------------");
-		
-		//right click toggling is enabled, handle it and check permission
-		if ( GlobalSettings.mmRightToggle() && perms.has(player, "dtl.trader.manage") )
-		{
-			//if air then chane to stick item
-			ItemStack itemToToggle = GlobalSettings.mmItemToggle();
-			if ( itemToToggle.getType().equals(Material.AIR) )
-				itemToToggle.setType(Material.STICK);
-
-			//if id's in hand and for toggling are the same manage the mode change
-			if ( itemInHand != null && itemToToggle.getType().equals(itemInHand.getType()) ) 
-			{
-				//send a event when manager mode toggling
-				TraderClickEvent e = (TraderClickEvent) new TraderClickEvent(this, player, true, false).callEvent();
-
-				//we can still stop mmToggling
-				if ( e.isManagerToggling() )
-				{
-					toggleManageMode("right");
-
-					//stop event execution
-					return false;
-				}
-			}
-			else
-			{
-				//maybe we can do this bit more nicer?
-
-				//send a event without toggling
-				new TraderClickEvent(this, player, false, false).callEvent();
-			}
-		}
-		else
-		{
-			//send a event without toggling
-			new TraderClickEvent(this, player, false, false).callEvent();
-		}
-
-		//debug info
-		dB.info(this.getClass().getSimpleName(), " Trader right click event, by: ", player.getName());
-
-		//update all limits
-		limits.refreshAll();
-
-		if ( status.inManagementMode() )
-			inventory = stock.getManagementInventory(baseStatus, status);
-		else
-			inventory = stock.getInventory(status);
-		parseStatus(status);
-
-		updatePlayerInventory();
-
-		//register the inventory as a traderInventory
-		tNpcManager.instance().registerOpenedInventory(player, inventory);
-
-		//open the traders inventory
-		player.openInventory(inventory);
-
-		TraderOpenEvent event = new TraderOpenEvent(this, player);
-		event.callEvent();
-
-		return true;
-	}
-
-	public void toggleManageMode(String clickEvent)
-	{
-		//debug info
-		dB.info(this.getClass().getSimpleName(), " Trader ", clickEvent, " click event, by: ", player.getName());
-
-		if ( status.inManagementMode() )
-		{
-			locale.sendMessage(player, "trader-managermode-disabled", "npc", getNPC().getName());
-			parseStatus(getDefaultStatus());
-		}
-		else
-		{
-			locale.sendMessage(player, "trader-managermode-enabled", "npc", getNPC().getName());
-			parseStatus(getDefaultManagementStatus());
-		}
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.TRADER)
-	public void generalUI(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("General UI checking");
-
-		int slot = e.getSlot();
-		if ( stock.isUiSlot(slot) )
-		{
-			//debug info
-			dB.info("Hit tests");
-
-			if ( hitTest(slot, "buy") )
-			{
-				//debug low
-				dB.low("Buy stock hit test");
-
-				//send message
-				locale.sendMessage(player, "trader-stock-toggled", "stock", "#stock-buy");
-
-				//change status
-				parseStatus(TEntityStatus.BUY);
-			}
-			else
-				if ( hitTest(slot, "sell") )
-				{
-					//debug low
-					dB.low("Sell stock hit test");
-
-					//send message
-					locale.sendMessage(player, "trader-stock-toggled", "stock", "#stock-sell");
-
-					//change status
-					parseStatus(TEntityStatus.SELL);
-				}
-				else
-					if ( hitTest(slot, "back") )
-					{
-						//debug low
-						dB.low("Babck to stock hit test");
-
-						//send message
-						locale.sendMessage(player, "trader-stock-back");
-
-						//change status
-						parseStatus(TEntityStatus.SELL);
-					}
-			//Update the inventory on EACH UI CLICK
-			stock.setInventory(inventory, getStatus());
-		}
-		e.setCancelled(true);
-	}
-
-	@ClickHandler(
-	status = {TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_UNLOCKED, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT, TEntityStatus.MANAGE_PLIMIT}, 
-	inventory = InventoryType.TRADER)
-	@SuppressWarnings("static-access")
-	public void manageUI(InventoryClickEvent e)
-	{		
-		int slot = e.getSlot();
-		if ( stock.isUiSlot(slot) )
-		{
-			if ( hitTest(slot, "buy") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#stock-buy");
-
-				//change status
-				parseStatus(TEntityStatus.MANAGE_BUY);
-			}
-			else
-			if ( hitTest(slot, "sell") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#stock-sell");
-				
-				//change status
-				parseStatus(TEntityStatus.MANAGE_SELL);
-			}
-			else
-			if ( hitTest(slot, "back") )
-			{
-				//if its backing from amounts managing save those amounts
-				if ( status.equals(TEntityStatus.MANAGE_AMOUNTS) )
-					stock.saveNewAmounts(inventory, getSelectedItem());
-				
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#stock");
-				
-				//change status
-				parseStatus(baseStatus);
-			}
-			else
-			if ( hitTest(slot, "price") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#price");
-					//change status
-				parseStatus(TEntityStatus.MANAGE_PRICE);
-			}
-			else
-			if ( hitTest(slot, "lock") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-stock-locked");
-
-				//change status
-				parseStatus(baseStatus);
-				saveItemsUpponLocking();
-			}
-			else
-			if ( hitTest(slot, "unlock") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-stock-unlocked");
-
-				//change status
-				parseStatus(TEntityStatus.MANAGE_UNLOCKED);
-			}
-			else
-			if ( hitTest(slot, "plimit") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#plimit");
-
-				//change status
-				parseStatus(TEntityStatus.MANAGE_PLIMIT);
-			}
-			else
-			if ( hitTest(slot, "limit") )
-			{
-				//send message
-				locale.sendMessage(player, "trader-managermode-toggled", "mode", "#limit");
-
-				//change status
-				parseStatus(TEntityStatus.MANAGE_LIMIT);
-			}
-			
-			stock.setManagementInventory(inventory, baseStatus, status);
-			setSpecialBlockValues();
-			e.setCancelled(true);
-		}
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.TRADER)
-	public void sellAmountsItems(InventoryClickEvent e)
-	{
-		e.setCancelled(true);
-		//check permission
-		if ( !perms.has(player, "dtl.trader.sell") ) return;
-
-		int slot = e.getSlot();
-		if ( stock.isUiSlot(slot) ) return;
-
-		if ( checkItemAmount(slot) )
-		{
-			if ( handleClick(e.getRawSlot()) )
-			{
-				if ( !inventoryHasPlace(slot) )
-				{
-					locale.sendMessage(player, "trader-transaction-failed-inventory");
-					transactionEvent(TransactionResult.INVENTORY_FULL);
-				}
-				else
-				if ( !checkSellLimits(slot) )
-				{
-					locale.sendMessage(player, "trader-transaction-failed-limit-reached");
-					transactionEvent(TransactionResult.LIMIT_REACHED);
-				}
-				else 
-				if ( !sellTransaction(slot) )
-				{
-					locale.sendMessage(player, "trader-transaction-failed-player-money");
-					transactionEvent(TransactionResult.PLAYER_LACKS_MONEY);
-				}
-				else
-				{
-					if ( transactionEvent(TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv() )
-						addToInventory(slot);
-					
-					//prepare substitution args (for default Price attribute)
-					StockItem item = getSelectedItem();
-					double price = session.getCurrencyValue("sell", item, item.getAmount(slot), Price.class);
-					sendTransactionMessage("trader-transaction-success", "#bought", price, item.getAmount(slot));
-					
-					//update limits
-					updateSellLimits(slot);
-
-					//update inventory - lore
-					updatePlayerInventory();
-				}
-			}
-			else
-			{
-				StockItem item = getSelectedItem();
-				double price = session.getCurrencyValue("sell", item, item.getAmount(slot), Price.class);
-				sendTransactionMessage("trader-transaction-item", "#info", price);
-			}
-		}
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL}, inventory = InventoryType.TRADER)
-	public void sellItems(InventoryClickEvent e)
-	{
-		e.setCancelled(true);
-		//check permission
-		if ( !perms.has(player, "dtl.trader.sell") ) return;
-
-		int slot = e.getSlot();
-		if ( stock.isUiSlot(slot) ) return;
-
-		if ( e.isLeftClick() )
-		{
-			if ( selectAndCheckItem(slot) )
-			{
-				if ( getSelectedItem().hasMultipleAmounts() )
-				{
-					//send message
-					locale.sendMessage(player, "trader-stock-toggled", "stock", "#stock-amounts");
-
-					//change status
-					status = TEntityStatus.SELL_AMOUNTS;
-					stock.setAmountsInventory(inventory, status, getSelectedItem());
-				}
-				else
-					if ( handleClick(e.getRawSlot()) )
-					{
-						if ( !inventoryHasPlace() )
-						{
-							//send message
-							locale.sendMessage(player, "trader-transaction-failed-inventory");
-
-							//send event
-							transactionEvent(TransactionResult.INVENTORY_FULL);
-						}
-						else
-							if ( !checkSellLimits() )
-							{
-								//send message
-								locale.sendMessage(player, "trader-transaction-failed-limit-reached");
-
-								//send event
-								transactionEvent(TransactionResult.LIMIT_REACHED);
-							}
-							else
-								if ( !sellTransaction() )
-								{
-									//send message
-									locale.sendMessage(player, "trader-transaction-failed-player-money");
-
-									//send event
-									transactionEvent(TransactionResult.PLAYER_LACKS_MONEY);
-								}
-								else
-								{
-									//send event
-									if (transactionEvent(TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv())
-										addToInventory();
-
-									StockItem item = getSelectedItem();
-									double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-									sendTransactionMessage("trader-transaction-success", "#bought", price);
-
-									//update limits
-									updateSellLimits();
-
-									//update inventory - lore
-									updatePlayerInventory();
-								}
-					}
-					else
-					{
-						StockItem item = getSelectedItem();
-						double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-						sendTransactionMessage("trader-transaction-item", "#info", price);
-					}
-			}
-		}
-		else
-		{
-			if ( selectAndCheckItem(slot) )
-			{
-				if ( handleClick(e.getRawSlot()) )
-				{
-					if ( !inventoryHasPlace() )
-					{
-						//send message
-						locale.sendMessage(player, "trader-transaction-failed-inventory");
-
-						//send event
-						transactionEvent(TransactionResult.INVENTORY_FULL);
-					}
-					else
-						if ( !checkSellLimits() )
-						{
-							//send message
-							locale.sendMessage(player, "trader-transaction-failed-limit-reached");
-
-							//send event
-							transactionEvent(TransactionResult.LIMIT_REACHED);
-						}
-						else
-							if ( !sellTransaction() )
-							{
-								//send message
-								locale.sendMessage(player, "trader-transaction-failed-player-money");
-
-								//send event
-								transactionEvent(TransactionResult.PLAYER_LACKS_MONEY);
-							}
-							else
-							{
-								//send event
-								if ( transactionEvent(TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv() )
-									addToInventory();
-
-								StockItem item = getSelectedItem();
-								double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-								
-								//send message
-								sendTransactionMessage("trader-transaction-success", "#bought", price);
-
-								//update limits
-								updateSellLimits();
-
-								//update inventory - lore
-								updatePlayerInventory();
-							}
-				}
-				else
-				{
-					StockItem item = getSelectedItem();
-					double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-					sendTransactionMessage("trader-transaction-item", "#info", price);
-				}
-			}
-		}
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.PLAYER)
-	public void sellAmountsSec(InventoryClickEvent e)
-	{
-		e.setCancelled(true);
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY}, inventory = InventoryType.PLAYER)
-	public void buyItems(InventoryClickEvent e)
-	{
-		e.setCancelled(true);
-		//Check the item in cursor if its marked
-
-		//check permission
-		if ( !perms.has(player, "dtl.trader.buy") ) return;
-
-		clearSelection();
-		int slot = e.getSlot();
-		if ( e.isLeftClick() )
-		{
-			if ( selectAndCheckItem(e.getCurrentItem(), "buy") )
-			{
-				int scale = e.getCurrentItem().getAmount() / getSelectedItem().getAmount();
-				if ( scale == 0 ) return;
-
-				if ( handleClick(e.getRawSlot()) )
-				{
-					if ( !checkBuyLimits(scale) )
-					{
-						//send message
-						locale.sendMessage(player, "trader-transaction-failed-limit-reached");
-
-						//send event
-						transactionEvent(TransactionResult.LIMIT_REACHED);
-					}
-					else
-						if ( !buyTransaction(scale) )
-						{						
-							//send message
-							locale.sendMessage(player, "trader-transaction-failed-trader-money", "npc", settings.getNPC().getName());
-
-							//send event
-							transactionEvent(TransactionResult.TRADER_LACKS_MONEY);
-						}
-						else
-						{
-							//send event
-							transactionEvent(TransactionResult.SUCCESS_PLAYER_SELL);
-
-							//remove the amount from inventory
-							removeFromInventory(slot, scale);
-
-							StockItem item = getSelectedItem();
-							double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class) * scale;
-							
-							//send the transaction success message
-							sendTransactionMessage("trader-transaction-success", "#sold", price, item.getAmount() * scale);
-
-							updateBuyLimits(scale);
-
-							//update the inventory lore
-							updatePlayerInventory();
-						}
-				}
-				else
-				{
-					StockItem item = getSelectedItem();
-					double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class) * scale;
-					sendTransactionMessage("trader-transaction-item", "#info", price);
-				}
-			}
-		}
-		else
-		{
-			if ( selectAndCheckItem(e.getCurrentItem(), "buy") )
-			{
-				int scale = e.getCurrentItem().getAmount() / getSelectedItem().getAmount();
-				if ( scale == 0 ) return;
-
-				if ( handleClick(e.getRawSlot()) )
-				{
-					if ( !checkBuyLimits() )
-					{
-						//send message
-						locale.sendMessage(player, "trader-transaction-failed-limit-reached");
-
-						//send event
-						transactionEvent(TransactionResult.LIMIT_REACHED);
-					}
-					else
-						if ( !buyTransaction() )
-						{
-							//send message
-							locale.sendMessage(player, "trader-transaction-failed-trader-money", "npc", settings.getNPC().getName());
-
-							//send event
-							transactionEvent(TransactionResult.TRADER_LACKS_MONEY);
-						}
-						else
-						{
-							//send event
-							transactionEvent(TransactionResult.SUCCESS_PLAYER_SELL);
-
-							//remove the amount from inventory
-							removeFromInventory(slot);
-
-							StockItem item = getSelectedItem();
-							double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-							
-							//send the transaction success message
-							sendTransactionMessage("trader-transaction-success", "#sold", price, item.getAmount());
-
-							//update limits
-							updateBuyLimits();
-
-							//update the inventory lore
-							updatePlayerInventory();
-						}
-				}
-				else
-				{
-					StockItem item = getSelectedItem();
-					double price = session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
-					sendTransactionMessage("trader-transaction-item", "#info", price);
-				}
-			}
-		}
-	}
-
-	/* manager mode handlers */
-	@ClickHandler(status={TEntityStatus.MANAGE_UNLOCKED}, inventory=InventoryType.TRADER)
-	public void setStock(InventoryClickEvent e)
-	{
-		dB.info("Unlocked stock click event");
-	}
-
-	@ClickHandler(status={TEntityStatus.MANAGE_UNLOCKED}, inventory=InventoryType.PLAYER)
-	public void getStock(InventoryClickEvent e)
-	{
-		dB.info("Unlocked stock click event");
-	}
-
-	@ClickHandler(status={TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY}, inventory=InventoryType.TRADER, shift = true)
-	public void itemAttribs(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Item managing click event");
-
-		//select the item that should have the price changed
-		if ( selectAndCheckItem(e.getSlot()) )
-		{
-			if ( e.isShiftClick() )
-			{
-				if ( e.isLeftClick() )
-				{
-					stock.setAmountsInventory(inventory, status, getSelectedItem());
-
-					locale.sendMessage(player, "trader-managermode-toggled", "mode", "#amount");
-					parseStatus(TEntityStatus.MANAGE_AMOUNTS);
-				}
-				else //if it's a shift rightclick
-				{
-
-				}
-			}
-			else //no shift click
-			{
-				if ( e.isLeftClick() )
-				{
-					if ( getSelectedItem().hasFlag(StackPrice.class) )
-						getSelectedItem().removeFlag(StackPrice.class);
-					else
-						getSelectedItem().addFlag(".sp");
-
-					locale.sendMessage(player, "key-change", 
-							"key", "#stack-price", 
-							"value", locale.getKeyword(String.valueOf(getSelectedItem().hasFlag(StackPrice.class))));
-				}
-				else //if it's a no shift rightclick
-				{
-					/* Unused feedback confuses players
-					if ( getSelectedItem().hasFlag(NoStack.class) )
-						getSelectedItem().removeFlag(NoStack.class);
-					else
-						getSelectedItem().addFlag(".nostack");
-
-					locale.sendMessage(player, "key-change", 
-							"key", "#stack-disable", 
-							"value", locale.getKeyword(String.valueOf(getSelectedItem().hasFlag(NoStack.class)));*/
-				}
-
-				// Update the item with new Price
-
-				/* Do not show the price in the general Management Tab! It's not to show prices
-				 * Ok it might be quite anoying to always check prices entering the price management
-				 * But every tab has its own purpose dont mix it!
-				 * 
-                StockItem item = getSelectedItem();
-                ItemStack itemStack = item.getItem(false);
-                ItemMeta meta = itemStack.getItemMeta();
-                meta.setLore(Price.loreRequest(stock.parsePrice(item, status.asStock(), item.getAmount()), item.getTempLore(status, itemStack.clone()), status));
-                itemStack.setItemMeta(meta); 
-                e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));*/
-			}
-		}
-		e.setCancelled(true);
-	}
-
-	@ClickHandler(status={TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY}, inventory=InventoryType.PLAYER)
-	public void itemsForStock(InventoryClickEvent e)
-	{
-	}
-
-	/**
-	 * Price managing for manager stock, this allows you to change prices for all items in your traders stock
-	 * @param e
-	 */
-	@ClickHandler(status={TEntityStatus.MANAGE_PRICE}, inventory=InventoryType.TRADER)
-	public void managePrices(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Price managing click event");
-
-		//select the item that should have the price changed
-		if ( selectAndCheckItem(e.getSlot()) )
-		{
-			//get the selected item
-			StockItem item = getSelectedItem();
-
-			//show the current price in chat, if cursor is AIR
-			if ( e.getCursor().getType().equals(Material.AIR) )
-			{
-				//sends the message
-				locale.sendMessage(player, "key-value", 
-						"key", "#price", "value", item.getPriceFormated());
-			}
-			else
-			{
-				//adds the price attribute to the item
-				Price price = item.getPriceAttr();
-
-				//adds value to the current price
-				if ( e.isLeftClick() )
-				{
-					//increases the price using specialBlockValue*cursorAmount
-					price.increase(Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-					//sends a message
-					locale.sendMessage(player, "key-change", 
-							"key", "#price", "value", item.getPriceFormated());
-				}
-				else
-					//remove value from the current price
-					if ( e.isRightClick() )
-					{
-						//decreases the price using specialBlockValue*cursorAmount
-						price.decrease(Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-						//sends a message
-						locale.sendMessage(player, "key-change", 
-								"key", "#price", "value", item.getPriceFormated());
-					}
-
-				//Get a clean item and it's meta
-	            ItemStack itemStack = item.getItem(false, item.getDescription(status));
-	            
-	            //replace the item with that one in the inventory
-	            e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
-			}
-		}
-		e.setCancelled(true);
-	}
-
-	/**
-	 * Limit managing for manager stock, this allows you to change limits for all items in your traders stock
-	 * @param e
-	 */
-	@ClickHandler(status={TEntityStatus.MANAGE_LIMIT}, inventory=InventoryType.TRADER, shift = true)
-	public void manageLimits(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Limit managing click event");
-
-		//select the item that should have the price changed
-		if ( selectAndCheckItem(e.getSlot()) )
-		{
-			//get the selected item
-			StockItem item = getSelectedItem();
-
-			//get the limit attribute
-			if (!item.hasAttribute(Limit.class))
-				item.addAttribute("l", this.settings.getNPC().getId() + "@" + baseStatus.asStock() + ":" + item.getSlot() + "/0/0s");
-			Limit limit = item.getAttribute(Limit.class, false);
-
-			//show the current price in chat, if cursor is AIR
-			if ( e.getCursor().getType().equals(Material.AIR) )
-			{
-				//sends the message
-				locale.sendMessage(player, "key-value", 
-						"key", "#limit", "value", limit.getLimit() != 0 ? String.valueOf(limit.getLimit()) : "none");
-				locale.sendMessage(player, "key-value", 
-						"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout()));
-			}
-			else
-			{
-				//change the limit
-				if ( !e.isShiftClick() )
-				{
-					//adds value to the current price
-					if ( e.isLeftClick() )
-					{
-						//increases the price using specialBlockValue*cursorAmount
-						limit.increaseLimit((int)Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-						//sends a message
-						locale.sendMessage(player, "key-change", 
-								"key", "#limit", "value", limit.getLimit() != 0 ? String.valueOf(limit.getLimit()) : "none");
-					}
-					else
-						//remove value from the current price
-						if ( e.isRightClick() )
-						{
-							//decreases the price using specialBlockValue*cursorAmount
-							limit.decreaseLimit((int)Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-							//sends a message
-							locale.sendMessage(player, "key-change", 
-									"key", "#limit", "value", limit.getLimit() != 0 ? String.valueOf(limit.getLimit()) : "none");
-						}
-				}
-				//change the timeout
-				else
-				{
-					//adds value to the current price
-					if ( e.isLeftClick() )
-					{
-						//increases the price using specialBlockValue*cursorAmount
-						limit.increaseTimeout(Settings.getBlockTimeoutValue(e.getCursor())*e.getCursor().getAmount());
-
-						//sends a message
-						locale.sendMessage(player, "key-change", 
-								"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout()));
-					}
-					else
-						//remove value from the current price
-						if ( e.isRightClick() )
-						{
-							//decreases the price using specialBlockValue*cursorAmount
-							limit.decreaseTimeout(Settings.getBlockTimeoutValue(e.getCursor())*e.getCursor().getAmount());
-
-							//sends a message
-							locale.sendMessage(player, "key-change", 
-									"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout()));
-						}
-				}
-
-				//Get a clean item and it's meta
-				ItemStack itemStack = item.getItem(false, item.getDescription(status));
-				//replace the item with that one in the inventory
-				e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
-			}
-
-			//remove the attribute if not needed
-			if (limit.getLimit() == 0 && limit.getPlayerLimit() == 0)
-			{
-				item.removeAttribute(Limit.class);
-			}
-		}
-		e.setCancelled(true);
-	}
-
-	/**
-	 * Limit managing for manager stock, this allows you to change limits for all items in your traders stock
-	 * @param e
-	 */
-	@ClickHandler(status={TEntityStatus.MANAGE_PLIMIT}, inventory=InventoryType.TRADER, shift = true)
-	public void managePlayerLimits(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Limit managing click event");
-
-		//select the item that should have the price changed
-		if ( selectAndCheckItem(e.getSlot()) )
-		{
-			//get the selected item
-			StockItem item = getSelectedItem();
-
-			//get the limit attribute
-			if (!item.hasAttribute(Limit.class))
-				item.addAttribute("l", this.settings.getNPC().getId() + "@" + baseStatus.asStock() + ":" + item.getSlot() + "/0/0s");
-			Limit limit = item.getAttribute(Limit.class, false);
-
-			//show the current price in chat, if cursor is AIR
-			if ( e.getCursor().getType().equals(Material.AIR) )
-			{
-				//sends the message
-				locale.sendMessage(player, "key-value", 
-						"key", "#limit", "value", limit.getPlayerLimit() != 0 ? String.valueOf(limit.getPlayerLimit()) : "none");
-				locale.sendMessage(player, "key-value", 
-						"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout()));
-			}
-			else
-			{
-				//change the limit
-				if ( !e.isShiftClick() )
-				{
-					//adds value to the current price
-					if ( e.isLeftClick() )
-					{
-						//increases the price using specialBlockValue*cursorAmount
-						limit.increasePlayerLimit((int)Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-						//sends a message
-						locale.sendMessage(player, "key-change", 
-								"key", "#limit", "value", limit.getPlayerLimit() != 0 ? String.valueOf(limit.getPlayerLimit()) : "none");
-					}
-					else
-						//remove value from the current price
-						if ( e.isRightClick() )
-						{
-							//decreases the price using specialBlockValue*cursorAmount
-							limit.decreasePlayerLimit((int)Settings.getBlockValue(e.getCursor())*e.getCursor().getAmount());
-
-							//sends a message
-							locale.sendMessage(player, "key-change", 
-									"key", "#limit", "value", limit.getPlayerLimit() != 0 ? String.valueOf(limit.getPlayerLimit()) : "none");
-						}
-				}
-				//change the timeout
-				else
-				{
-					//adds value to the current price
-					if ( e.isLeftClick() )
-					{
-						//increases the price using specialBlockValue*cursorAmount
-						limit.increasePlayerTimeout(Settings.getBlockTimeoutValue(e.getCursor())*e.getCursor().getAmount());
-
-						//sends a message
-						locale.sendMessage(player, "key-change", 
-								"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout()));
-					}
-					else
-						//remove value from the current price
-						if ( e.isRightClick() )
-						{
-							//decreases the price using specialBlockValue*cursorAmount
-							limit.decreasePlayerTimeout(Settings.getBlockTimeoutValue(e.getCursor())*e.getCursor().getAmount());
-
-							//sends a message
-							locale.sendMessage(player, "key-change", 
-									"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout()));
-						}
-				}
-
-				//Get a clean item and it's meta
-				ItemStack itemStack = item.getItem(false, item.getDescription(status));
-
-				//replace the item with that one in the inventory
-				e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
-
-
-				//remove the attribute if not needed
-				if (limit.getLimit() == 0 && limit.getPlayerLimit() == 0)
-				{
-					item.removeAttribute(Limit.class);
-				}
-			}
-			e.setCancelled(true);
-		}
-	}
-
-	//shift handler
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_SELL}, shift = true, inventory = InventoryType.TRADER)
-	public void topShift(InventoryClickEvent e)
-	{
-		if ( e.isShiftClick() )
-			e.setCancelled(true);
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_SELL}, shift = true, inventory = InventoryType.PLAYER)
-	public void botShift(InventoryClickEvent e)
-	{
-		if ( e.isShiftClick() )
-			e.setCancelled(true);
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT}, shift = true, inventory = InventoryType.TRADER)
-	public void topDebug(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Inventory click, by: ", player.getName(), ", status: ", status.name().toLowerCase());
-		dB.info("slot: ", e.getSlot(), ", left: ", e.isLeftClick(), ", shift: ", e.isShiftClick());
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT}, shift = true, inventory = InventoryType.PLAYER)
-	public void botDebug(InventoryClickEvent e)
-	{
-		//debug info
-		dB.info("Inventory click, by: ", player.getName(), ", status: ", status.name().toLowerCase());
-		dB.info("slot: ", e.getSlot(), ", left: ", e.isLeftClick(), ", shift: ", e.isShiftClick());
-	}
-
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.TRADER)
-	public void __topUpdate(InventoryClickEvent e)
-	{
-		limits.refreshAll();
-		if (status.equals(TEntityStatus.SELL_AMOUNTS))
-			stock.setAmountsInventory(inventory, status, getSelectedItem());
-		else
-			stock.setInventory(inventory, status);
-	}
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.PLAYER)
-	public void __bottomUpdate(InventoryClickEvent e)
-	{
-		limits.refreshAll();
-		if (status.equals(TEntityStatus.SELL_AMOUNTS))
-			stock.setAmountsInventory(inventory, status, getSelectedItem());
-		else
-			stock.setInventory(inventory, status);
-	}
-
-	@SuppressWarnings("deprecation")
-	@ClickHandler(status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS}, inventory = InventoryType.PLAYER)
-	public void __last(InventoryClickEvent e)
-	{
-		//Temporary fix for Touchscreen issue!
-		if ( e.isCancelled() )
-		{
-			//e.setCurrentItem(null);
-			//e.setCurrentItem(e.getCurrentItem());
-			//This should be fixed soon! 
-			//e.getWhoClicked().
-			((Player)e.getWhoClicked()).updateInventory();
-
-			//update the trader inventory too
-		}
-	}
+   public Server(TraderTrait trader, WalletTrait wallet, Player player) {
+      super(trader, wallet, player);
+   }
+
+   public void onLeftClick(ItemStack itemInHand) {
+      TraderClickEvent e = (TraderClickEvent)(new TraderClickEvent(this, this.player, !GlobalSettings.mmRightToggle(), true)).callEvent();
+      if(e.isManagerToggling()) {
+         if(this.perms.has(this.player, "dtl.trader.manage")) {
+            ItemStack itemToToggle = GlobalSettings.mmItemToggle();
+            if(itemInHand == null || itemToToggle.getType().equals(Material.AIR) || itemToToggle.getType().equals(itemInHand.getType())) {
+               this.toggleManageMode("left");
+            }
+         }
+      }
+   }
+
+   public boolean onRightClick(ItemStack itemInHand) {
+      dB.info(new Object[]{"-------------------------------------"});
+      dB.info(new Object[]{"Trader right click"});
+      dB.info(new Object[]{"-------------------------------------"});
+      if(GlobalSettings.mmRightToggle() && this.perms.has(this.player, "dtl.trader.manage")) {
+         ItemStack event = GlobalSettings.mmItemToggle();
+         if(event.getType().equals(Material.AIR)) {
+            event.setType(Material.STICK);
+         }
+
+         if(itemInHand != null && event.getType().equals(itemInHand.getType())) {
+            TraderClickEvent e = (TraderClickEvent)(new TraderClickEvent(this, this.player, true, false)).callEvent();
+            if(e.isManagerToggling()) {
+               this.toggleManageMode("right");
+               return false;
+            }
+         } else {
+            (new TraderClickEvent(this, this.player, false, false)).callEvent();
+         }
+      } else {
+         (new TraderClickEvent(this, this.player, false, false)).callEvent();
+      }
+
+      dB.info(new Object[]{this.getClass().getSimpleName(), " Trader right click event, by: ", this.player.getName()});
+      this.limits.refreshAll();
+      if(this.status.inManagementMode()) {
+         this.inventory = this.stock.getManagementInventory(this.baseStatus, this.status);
+      } else {
+         this.inventory = this.stock.getInventory(this.status);
+      }
+
+      this.parseStatus(this.status);
+      this.updatePlayerInventory();
+      tNpcManager.instance().registerOpenedInventory(this.player, this.inventory);
+      this.player.openInventory(this.inventory);
+      TraderOpenEvent event1 = new TraderOpenEvent(this, this.player);
+      event1.callEvent();
+      return true;
+   }
+
+   public void toggleManageMode(String clickEvent) {
+      dB.info(new Object[]{this.getClass().getSimpleName(), " Trader ", clickEvent, " click event, by: ", this.player.getName()});
+      if(this.status.inManagementMode()) {
+         this.locale.sendMessage(this.player, "trader-managermode-disabled", new Object[]{"npc", this.getNPC().getName()});
+         this.parseStatus(this.getDefaultStatus());
+      } else {
+         this.locale.sendMessage(this.player, "trader-managermode-enabled", new Object[]{"npc", this.getNPC().getName()});
+         this.parseStatus(this.getDefaultManagementStatus());
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.TRADER
+   )
+   public void generalUI(InventoryClickEvent e) {
+      dB.info(new Object[]{"General UI checking"});
+      int slot = e.getSlot();
+      if(this.stock.isUiSlot(slot)) {
+         dB.info(new Object[]{"Hit tests"});
+         if(this.hitTest(slot, "buy")) {
+            dB.low(new Object[]{"Buy stock hit test"});
+            this.locale.sendMessage(this.player, "trader-stock-toggled", new Object[]{"stock", "#stock-buy"});
+            this.parseStatus(TEntityStatus.BUY);
+         } else if(this.hitTest(slot, "sell")) {
+            dB.low(new Object[]{"Sell stock hit test"});
+            this.locale.sendMessage(this.player, "trader-stock-toggled", new Object[]{"stock", "#stock-sell"});
+            this.parseStatus(TEntityStatus.SELL);
+         } else if(this.hitTest(slot, "back")) {
+            dB.low(new Object[]{"Babck to stock hit test"});
+            this.locale.sendMessage(this.player, "trader-stock-back", new Object[0]);
+            this.parseStatus(TEntityStatus.SELL);
+         }
+
+         this.stock.setInventory(this.inventory, this.getStatus());
+      }
+
+      e.setCancelled(true);
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_UNLOCKED, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT, TEntityStatus.MANAGE_PLIMIT},
+      inventory = InventoryType.TRADER
+   )
+   public void manageUI(InventoryClickEvent e) {
+      int slot = e.getSlot();
+      if(this.stock.isUiSlot(slot)) {
+         if(this.hitTest(slot, "buy")) {
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#stock-buy"});
+            this.parseStatus(TEntityStatus.MANAGE_BUY);
+         } else if(this.hitTest(slot, "sell")) {
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#stock-sell"});
+            this.parseStatus(TEntityStatus.MANAGE_SELL);
+         } else if(this.hitTest(slot, "back")) {
+            if(this.status.equals(TEntityStatus.MANAGE_AMOUNTS)) {
+               Stock var10000 = this.stock;
+               Stock.saveNewAmounts(this.inventory, this.getSelectedItem());
+            }
+
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#stock"});
+            this.parseStatus(this.baseStatus);
+         } else if(this.hitTest(slot, "price")) {
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#price"});
+            this.parseStatus(TEntityStatus.MANAGE_PRICE);
+         } else if(this.hitTest(slot, "lock")) {
+            this.locale.sendMessage(this.player, "trader-managermode-stock-locked", new Object[0]);
+            this.parseStatus(this.baseStatus);
+            this.saveItemsUpponLocking();
+         } else if(this.hitTest(slot, "unlock")) {
+            this.locale.sendMessage(this.player, "trader-managermode-stock-unlocked", new Object[0]);
+            this.parseStatus(TEntityStatus.MANAGE_UNLOCKED);
+         } else if(this.hitTest(slot, "plimit")) {
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#plimit"});
+            this.parseStatus(TEntityStatus.MANAGE_PLIMIT);
+         } else if(this.hitTest(slot, "limit")) {
+            this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#limit"});
+            this.parseStatus(TEntityStatus.MANAGE_LIMIT);
+         }
+
+         this.stock.setManagementInventory(this.inventory, this.baseStatus, this.status);
+         this.setSpecialBlockValues();
+         e.setCancelled(true);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.TRADER
+   )
+   public void sellAmountsItems(InventoryClickEvent e) {
+      e.setCancelled(true);
+      if(this.perms.has(this.player, "dtl.trader.sell")) {
+         int slot = e.getSlot();
+         if(!this.stock.isUiSlot(slot)) {
+            if(this.checkItemAmount(slot)) {
+               StockItem item;
+               double price;
+               if(this.handleClick(e.getRawSlot())) {
+                  if(!this.inventoryHasPlace(slot)) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-inventory", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.INVENTORY_FULL);
+                  } else if(!this.checkSellLimits(slot)) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-limit-reached", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.LIMIT_REACHED);
+                  } else if(!this.sellTransaction(slot)) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-player-money", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.PLAYER_LACKS_MONEY);
+                  } else {
+                     if(this.transactionEvent(TraderTransactionEvent.TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv()) {
+                        this.addToInventory(slot);
+                     }
+
+                     item = this.getSelectedItem();
+                     price = this.session.getCurrencyValue("sell", item, item.getAmount(slot), Price.class);
+                     this.sendTransactionMessage("trader-transaction-success", "#bought", price, item.getAmount(slot));
+                     this.updateSellLimits(slot);
+                     this.updatePlayerInventory();
+                  }
+               } else {
+                  item = this.getSelectedItem();
+                  price = this.session.getCurrencyValue("sell", item, item.getAmount(slot), Price.class);
+                  this.sendTransactionMessage("trader-transaction-item", "#info", price);
+               }
+            }
+
+         }
+      }
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL},
+      inventory = InventoryType.TRADER
+   )
+   public void sellItems(InventoryClickEvent e) {
+      e.setCancelled(true);
+      System.out.print(e.getCurrentItem());
+      if(this.perms.has(this.player, "dtl.trader.sell")) {
+         int slot = e.getSlot();
+         if(!this.stock.isUiSlot(slot)) {
+            StockItem item;
+            double price;
+            if(e.isLeftClick()) {
+               if(this.selectAndCheckItem(slot)) {
+                  if(this.getSelectedItem().hasMultipleAmounts()) {
+                     this.locale.sendMessage(this.player, "trader-stock-toggled", new Object[]{"stock", "#stock-amounts"});
+                     this.status = TEntityStatus.SELL_AMOUNTS;
+                     this.stock.setAmountsInventory(this.inventory, this.status, this.getSelectedItem());
+                  } else if(this.handleClick(e.getRawSlot())) {
+                     if(!this.inventoryHasPlace()) {
+                        this.locale.sendMessage(this.player, "trader-transaction-failed-inventory", new Object[0]);
+                        this.transactionEvent(TraderTransactionEvent.TransactionResult.INVENTORY_FULL);
+                     } else if(!this.checkSellLimits()) {
+                        this.locale.sendMessage(this.player, "trader-transaction-failed-limit-reached", new Object[0]);
+                        this.transactionEvent(TraderTransactionEvent.TransactionResult.LIMIT_REACHED);
+                     } else if(!this.sellTransaction()) {
+                        this.locale.sendMessage(this.player, "trader-transaction-failed-player-money", new Object[0]);
+                        this.transactionEvent(TraderTransactionEvent.TransactionResult.PLAYER_LACKS_MONEY);
+                     } else {
+                        if(this.transactionEvent(TraderTransactionEvent.TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv()) {
+                           this.addToInventory();
+                        }
+
+                        item = this.getSelectedItem();
+                        price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+                        this.sendTransactionMessage("trader-transaction-success", "#bought", price);
+                        this.updateSellLimits();
+                        this.updatePlayerInventory();
+                     }
+                  } else {
+                     item = this.getSelectedItem();
+                     price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+                     this.sendTransactionMessage("trader-transaction-item", "#info", price);
+                  }
+               }
+            } else if(this.selectAndCheckItem(slot)) {
+               if(this.handleClick(e.getRawSlot())) {
+                  if(!this.inventoryHasPlace()) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-inventory", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.INVENTORY_FULL);
+                  } else if(!this.checkSellLimits()) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-limit-reached", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.LIMIT_REACHED);
+                  } else if(!this.sellTransaction()) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-player-money", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.PLAYER_LACKS_MONEY);
+                  } else {
+                     if(this.transactionEvent(TraderTransactionEvent.TransactionResult.SUCCESS_PLAYER_BUY).isSaveToInv()) {
+                        this.addToInventory();
+                     }
+
+                     item = this.getSelectedItem();
+                     price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+                     this.sendTransactionMessage("trader-transaction-success", "#bought", price);
+                     this.updateSellLimits();
+                     this.updatePlayerInventory();
+                  }
+               } else {
+                  item = this.getSelectedItem();
+                  price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+                  this.sendTransactionMessage("trader-transaction-item", "#info", price);
+               }
+            }
+
+         }
+      }
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.PLAYER
+   )
+   public void sellAmountsSec(InventoryClickEvent e) {
+      e.setCancelled(true);
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY},
+      inventory = InventoryType.PLAYER
+   )
+   public void buyItems(InventoryClickEvent e) {
+      e.setCancelled(true);
+      if(this.perms.has(this.player, "dtl.trader.buy")) {
+         this.clearSelection();
+         int slot = e.getSlot();
+         int scale;
+         StockItem item;
+         double price;
+         if(e.isLeftClick()) {
+            if(this.selectAndCheckItem(e.getCurrentItem(), "buy")) {
+               scale = e.getCurrentItem().getAmount() / this.getSelectedItem().getAmount();
+               if(scale == 0) {
+                  return;
+               }
+
+               if(this.handleClick(e.getRawSlot())) {
+                  if(!this.checkBuyLimits(scale)) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-limit-reached", new Object[0]);
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.LIMIT_REACHED);
+                  } else if(!this.buyTransaction(scale)) {
+                     this.locale.sendMessage(this.player, "trader-transaction-failed-trader-money", new Object[]{"npc", this.settings.getNPC().getName()});
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.TRADER_LACKS_MONEY);
+                  } else {
+                     this.transactionEvent(TraderTransactionEvent.TransactionResult.SUCCESS_PLAYER_SELL);
+                     this.removeFromInventory(slot, scale);
+                     item = this.getSelectedItem();
+                     price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class) * (double)scale;
+                     this.sendTransactionMessage("trader-transaction-success", "#sold", price, item.getAmount() * scale);
+                     this.updateBuyLimits(scale);
+                     this.updatePlayerInventory();
+                  }
+               } else {
+                  item = this.getSelectedItem();
+                  price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class) * (double)scale;
+                  this.sendTransactionMessage("trader-transaction-item", "#info", price);
+               }
+            }
+         } else if(this.selectAndCheckItem(e.getCurrentItem(), "buy")) {
+            scale = e.getCurrentItem().getAmount() / this.getSelectedItem().getAmount();
+            if(scale == 0) {
+               return;
+            }
+
+            if(this.handleClick(e.getRawSlot())) {
+               if(!this.checkBuyLimits()) {
+                  this.locale.sendMessage(this.player, "trader-transaction-failed-limit-reached", new Object[0]);
+                  this.transactionEvent(TraderTransactionEvent.TransactionResult.LIMIT_REACHED);
+               } else if(!this.buyTransaction()) {
+                  this.locale.sendMessage(this.player, "trader-transaction-failed-trader-money", new Object[]{"npc", this.settings.getNPC().getName()});
+                  this.transactionEvent(TraderTransactionEvent.TransactionResult.TRADER_LACKS_MONEY);
+               } else {
+                  this.transactionEvent(TraderTransactionEvent.TransactionResult.SUCCESS_PLAYER_SELL);
+                  this.removeFromInventory(slot);
+                  item = this.getSelectedItem();
+                  price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+                  this.sendTransactionMessage("trader-transaction-success", "#sold", price, item.getAmount());
+                  this.updateBuyLimits();
+                  this.updatePlayerInventory();
+               }
+            } else {
+               item = this.getSelectedItem();
+               price = this.session.getCurrencyValue("sell", item, item.getAmount(), Price.class);
+               this.sendTransactionMessage("trader-transaction-item", "#info", price);
+            }
+         }
+
+      }
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_UNLOCKED},
+      inventory = InventoryType.TRADER
+   )
+   public void setStock(InventoryClickEvent e) {
+      dB.info(new Object[]{"Unlocked stock click event"});
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_UNLOCKED},
+      inventory = InventoryType.PLAYER
+   )
+   public void getStock(InventoryClickEvent e) {
+      dB.info(new Object[]{"Unlocked stock click event"});
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY},
+      inventory = InventoryType.TRADER,
+      shift = true
+   )
+   public void itemAttribs(InventoryClickEvent e) {
+      dB.info(new Object[]{"Item managing click event"});
+      if(this.selectAndCheckItem(e.getSlot())) {
+         if(e.isShiftClick()) {
+            if(e.isLeftClick()) {
+               this.stock.setAmountsInventory(this.inventory, this.status, this.getSelectedItem());
+               this.locale.sendMessage(this.player, "trader-managermode-toggled", new Object[]{"mode", "#amount"});
+               this.parseStatus(TEntityStatus.MANAGE_AMOUNTS);
+            }
+         } else if(e.isLeftClick()) {
+            if(this.getSelectedItem().hasFlag(StackPrice.class)) {
+               this.getSelectedItem().removeFlag(StackPrice.class);
+            } else {
+               this.getSelectedItem().addFlag(".sp");
+            }
+
+            this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#stack-price", "value", this.locale.getKeyword(String.valueOf(this.getSelectedItem().hasFlag(StackPrice.class)))});
+         }
+      }
+
+      e.setCancelled(true);
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY},
+      inventory = InventoryType.PLAYER
+   )
+   public void itemsForStock(InventoryClickEvent e) {}
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_PRICE},
+      inventory = InventoryType.TRADER
+   )
+   public void managePrices(InventoryClickEvent e) {
+      dB.info(new Object[]{"Price managing click event"});
+      if(this.selectAndCheckItem(e.getSlot())) {
+         StockItem item = this.getSelectedItem();
+         if(e.getCursor().getType().equals(Material.AIR)) {
+            this.locale.sendMessage(this.player, "key-value", new Object[]{"key", "#price", "value", item.getPriceFormated()});
+         } else {
+            Price price = item.getPriceAttr();
+            if(e.isLeftClick()) {
+               price.increase(Settings.getBlockValue(e.getCursor()) * (double)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#price", "value", item.getPriceFormated()});
+            } else if(e.isRightClick()) {
+               price.decrease(Settings.getBlockValue(e.getCursor()) * (double)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#price", "value", item.getPriceFormated()});
+            }
+
+            ItemStack itemStack = item.getItem(false, item.getDescription(this.status));
+            e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
+         }
+      }
+
+      e.setCancelled(true);
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_LIMIT},
+      inventory = InventoryType.TRADER,
+      shift = true
+   )
+   public void manageLimits(InventoryClickEvent e) {
+      dB.info(new Object[]{"Limit managing click event"});
+      if(this.selectAndCheckItem(e.getSlot())) {
+         StockItem item = this.getSelectedItem();
+         if(!item.hasAttribute(Limit.class)) {
+            item.addAttribute("l", this.settings.getNPC().getId() + "@" + this.baseStatus.asStock() + ":" + item.getSlot() + "/0/0s");
+         }
+
+         Limit limit = (Limit)item.getAttribute(Limit.class, false);
+         if(e.getCursor().getType().equals(Material.AIR)) {
+            this.locale.sendMessage(this.player, "key-value", new Object[]{"key", "#limit", "value", limit.getLimit() != 0?String.valueOf(limit.getLimit()):"none"});
+            this.locale.sendMessage(this.player, "key-value", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout())});
+         } else {
+            if(!e.isShiftClick()) {
+               if(e.isLeftClick()) {
+                  limit.increaseLimit((int)Settings.getBlockValue(e.getCursor()) * e.getCursor().getAmount());
+                  this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#limit", "value", limit.getLimit() != 0?String.valueOf(limit.getLimit()):"none"});
+               } else if(e.isRightClick()) {
+                  limit.decreaseLimit((int)Settings.getBlockValue(e.getCursor()) * e.getCursor().getAmount());
+                  this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#limit", "value", limit.getLimit() != 0?String.valueOf(limit.getLimit()):"none"});
+               }
+            } else if(e.isLeftClick()) {
+               limit.increaseTimeout(Settings.getBlockTimeoutValue(e.getCursor()) * (long)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout())});
+            } else if(e.isRightClick()) {
+               limit.decreaseTimeout(Settings.getBlockTimeoutValue(e.getCursor()) * (long)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getTimeout())});
+            }
+
+            ItemStack itemStack = item.getItem(false, item.getDescription(this.status));
+            e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
+         }
+
+         if(limit.getLimit() == 0 && limit.getPlayerLimit() == 0) {
+            item.removeAttribute(Limit.class);
+         }
+      }
+
+      e.setCancelled(true);
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.MANAGE_PLIMIT},
+      inventory = InventoryType.TRADER,
+      shift = true
+   )
+   public void managePlayerLimits(InventoryClickEvent e) {
+      dB.info(new Object[]{"Limit managing click event"});
+      if(this.selectAndCheckItem(e.getSlot())) {
+         StockItem item = this.getSelectedItem();
+         if(!item.hasAttribute(Limit.class)) {
+            item.addAttribute("l", this.settings.getNPC().getId() + "@" + this.baseStatus.asStock() + ":" + item.getSlot() + "/0/0s");
+         }
+
+         Limit limit = (Limit)item.getAttribute(Limit.class, false);
+         if(e.getCursor().getType().equals(Material.AIR)) {
+            this.locale.sendMessage(this.player, "key-value", new Object[]{"key", "#limit", "value", limit.getPlayerLimit() != 0?String.valueOf(limit.getPlayerLimit()):"none"});
+            this.locale.sendMessage(this.player, "key-value", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout())});
+         } else {
+            if(!e.isShiftClick()) {
+               if(e.isLeftClick()) {
+                  limit.increasePlayerLimit((int)Settings.getBlockValue(e.getCursor()) * e.getCursor().getAmount());
+                  this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#limit", "value", limit.getPlayerLimit() != 0?String.valueOf(limit.getPlayerLimit()):"none"});
+               } else if(e.isRightClick()) {
+                  limit.decreasePlayerLimit((int)Settings.getBlockValue(e.getCursor()) * e.getCursor().getAmount());
+                  this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#limit", "value", limit.getPlayerLimit() != 0?String.valueOf(limit.getPlayerLimit()):"none"});
+               }
+            } else if(e.isLeftClick()) {
+               limit.increasePlayerTimeout(Settings.getBlockTimeoutValue(e.getCursor()) * (long)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout())});
+            } else if(e.isRightClick()) {
+               limit.decreasePlayerTimeout(Settings.getBlockTimeoutValue(e.getCursor()) * (long)e.getCursor().getAmount());
+               this.locale.sendMessage(this.player, "key-change", new Object[]{"key", "#timeout", "value", LimitManager.timeoutString(limit.getPlayerTimeout())});
+            }
+
+            ItemStack itemStack = item.getItem(false, item.getDescription(this.status));
+            e.getInventory().setItem(item.getSlot(), NBTUtils.markItem(itemStack));
+            if(limit.getLimit() == 0 && limit.getPlayerLimit() == 0) {
+               item.removeAttribute(Limit.class);
+            }
+         }
+
+         e.setCancelled(true);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_SELL},
+      shift = true,
+      inventory = InventoryType.TRADER
+   )
+   public void topShift(InventoryClickEvent e) {
+      if(e.isShiftClick()) {
+         e.setCancelled(true);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_SELL},
+      shift = true,
+      inventory = InventoryType.PLAYER
+   )
+   public void botShift(InventoryClickEvent e) {
+      if(e.isShiftClick()) {
+         e.setCancelled(true);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT},
+      shift = true,
+      inventory = InventoryType.TRADER
+   )
+   public void topDebug(InventoryClickEvent e) {
+      dB.info(new Object[]{"Inventory click, by: ", this.player.getName(), ", status: ", this.status.name().toLowerCase()});
+      dB.info(new Object[]{"slot: ", Integer.valueOf(e.getSlot()), ", left: ", Boolean.valueOf(e.isLeftClick()), ", shift: ", Boolean.valueOf(e.isShiftClick())});
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_SELL, TEntityStatus.MANAGE_BUY, TEntityStatus.MANAGE_AMOUNTS, TEntityStatus.MANAGE_PRICE, TEntityStatus.MANAGE_LIMIT},
+      shift = true,
+      inventory = InventoryType.PLAYER
+   )
+   public void botDebug(InventoryClickEvent e) {
+      dB.info(new Object[]{"Inventory click, by: ", this.player.getName(), ", status: ", this.status.name().toLowerCase()});
+      dB.info(new Object[]{"slot: ", Integer.valueOf(e.getSlot()), ", left: ", Boolean.valueOf(e.isLeftClick()), ", shift: ", Boolean.valueOf(e.isShiftClick())});
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.TRADER
+   )
+   public void __topUpdate(InventoryClickEvent e) {
+      this.limits.refreshAll();
+      if(this.status.equals(TEntityStatus.SELL_AMOUNTS)) {
+         this.stock.setAmountsInventory(this.inventory, this.status, this.getSelectedItem());
+      } else {
+         this.stock.setInventory(this.inventory, this.status);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.PLAYER
+   )
+   public void __bottomUpdate(InventoryClickEvent e) {
+      this.limits.refreshAll();
+      if(this.status.equals(TEntityStatus.SELL_AMOUNTS)) {
+         this.stock.setAmountsInventory(this.inventory, this.status, this.getSelectedItem());
+      } else {
+         this.stock.setInventory(this.inventory, this.status);
+      }
+
+   }
+
+   @ClickHandler(
+      status = {TEntityStatus.SELL, TEntityStatus.BUY, TEntityStatus.SELL_AMOUNTS},
+      inventory = InventoryType.PLAYER
+   )
+   public void __last(InventoryClickEvent e) {
+      if(e.isCancelled()) {
+         ((Player)e.getWhoClicked()).updateInventory();
+      }
+
+   }
 }

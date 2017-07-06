@@ -2,292 +2,296 @@ package net.dandielo.citizens.traders_v3.traders.stock;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
+import java.util.Map.Entry;
 import net.citizensnpcs.api.util.DataKey;
 import net.dandielo.citizens.traders_v3.TEntityStatus;
 import net.dandielo.citizens.traders_v3.core.dB;
-import net.dandielo.citizens.traders_v3.traders.setting.Settings;
 import net.dandielo.citizens.traders_v3.traders.setting.GlobalSettings;
+import net.dandielo.citizens.traders_v3.traders.setting.Settings;
 import net.dandielo.citizens.traders_v3.utils.items.attributes.PatternItem;
 import net.dandielo.core.bukkit.NBTUtils;
+import net.dandielo.core.items.serialize.core.Enchants;
+import net.dandielo.core.items.serialize.core.Name;
+import net.dandielo.core.items.serialize.core.Skull;
+import net.dandielo.core.items.serialize.core.StoredEnchant;
 import net.dandielo.core.items.serialize.flags.Lore;
-
 import org.bukkit.Bukkit;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 
 public class StockTrader extends Stock {
 
-	public StockTrader(Settings settings)
-	{
-		super(settings);
-	}
+   public StockTrader(Settings settings) {
+      super(settings);
+   }
 
-	//stock operations
-	public void addItem(StockItem item, String stock)
-	{
-		this.stock.get(stock).add(item);
-	}
+   public void addItem(StockItem item, String stock) {
+      ((List)this.stock.get(stock)).add(item);
+   }
 
-	public void removeItem(StockItem item, String stock)
-	{
-		this.stock.get(stock).remove(item);
-	}
+   public void removeItem(StockItem item, String stock) {
+      ((List)this.stock.get(stock)).remove(item);
+   }
 
-	//stock load and save
-	@Override
-	@SuppressWarnings("unchecked")
-	public void load(DataKey data) 
-	{
-		//debug info
-		dB.info("Loading trader specific stock");
-		if ( data.keyExists("sell") )
-		{
-			for ( Object item : (List<Object>) data.getRaw("sell") ) 
-			{
-				if ( item instanceof String )
-				{
-					StockItem stockItem = new StockItem((String)item);
-					if ( stockItem.getSlot() < 0 )
-						stock.get("sell").add(stockItem);
-					else
-						stock.get("sell").add(0, stockItem);
-				}
-				else
-				{
-					StockItem stockItem = null;
-					for ( Map.Entry<String, List<String>> entry : ((Map<String, List<String>>) item).entrySet() )
-						stockItem = new StockItem(entry.getKey(), entry.getValue());
+   public void load(DataKey data) {
+      dB.info(new Object[]{"Loading trader specific stock"});
+      Iterator var2;
+      Object item;
+      StockItem stockItem;
+      Iterator var5;
+      Entry entry;
+      if(data.keyExists("sell")) {
+         var2 = ((List)data.getRaw("sell")).iterator();
 
-					if ( stockItem.getSlot() < 0 )
-						stock.get("sell").add(stockItem);
-					else
-						stock.get("sell").add(0, stockItem);
-				}
-			}
-		}
+         while(var2.hasNext()) {
+            item = var2.next();
+            if(item instanceof String) {
+               stockItem = new StockItem((String)item);
+               if(stockItem.getSlot() < 0) {
+                  ((List)this.stock.get("sell")).add(stockItem);
+               } else {
+                  ((List)this.stock.get("sell")).add(0, stockItem);
+               }
+            } else {
+               stockItem = null;
 
-		if ( data.keyExists("buy") ) 
-		{
-			for ( Object item :  (List<Object>) data.getRaw("buy") )
-			{
-				if ( item instanceof String )
-				{
-					StockItem stockItem = new StockItem((String)item);
-					if ( stockItem.getSlot() < 0 )
-						stock.get("buy").add(stockItem);
-					else
-						stock.get("buy").add(0, stockItem);
-				}
-				else
-				{
-					StockItem stockItem = null;
-					for ( Map.Entry<String, List<String>> entry : ((Map<String, List<String>>) item).entrySet() )
-						stockItem = new StockItem(entry.getKey(), entry.getValue());
+               for(var5 = ((Map)item).entrySet().iterator(); var5.hasNext(); stockItem = new StockItem((String)entry.getKey(), (List)entry.getValue())) {
+                  entry = (Entry)var5.next();
+               }
 
-					if ( stockItem.getSlot() < 0 )
-						stock.get("buy").add(stockItem);
-					else
-						stock.get("buy").add(0, stockItem);
-				}
-			}
-		}
-	}
+               if(stockItem.getSlot() < 0) {
+                  ((List)this.stock.get("sell")).add(stockItem);
+               } else {
+                  ((List)this.stock.get("sell")).add(0, stockItem);
+               }
+            }
+         }
+      }
 
-	@Override
-	public void save(DataKey data)
-	{
-		//debug info
-		dB.info("Saving traders stock");
+      if(data.keyExists("buy")) {
+         var2 = ((List)data.getRaw("buy")).iterator();
 
-		List<Object> sellList = new ArrayList<Object>();
-		for (StockItem item : stock.get("sell"))
-		{
-			if (!item.hasAttribute(PatternItem.class))
-			{
-				if (item.hasFlag(Lore.class))
-				{
-					Map<String, List<String>> temp = new HashMap<String, List<String>>();
-					temp.put(item.toString(), escapeLore(item.getLore()));
-					sellList.add(temp);
-				}
-				else
-					sellList.add(item.toString());
-			}
-		}
+         while(var2.hasNext()) {
+            item = var2.next();
+            if(item instanceof String) {
+               stockItem = new StockItem((String)item);
+               if(stockItem.getSlot() < 0) {
+                  ((List)this.stock.get("buy")).add(stockItem);
+               } else {
+                  ((List)this.stock.get("buy")).add(0, stockItem);
+               }
+            } else {
+               stockItem = null;
 
-		List<Object> buyList = new ArrayList<Object>();
-		for ( StockItem item : stock.get("buy") )
-		{
-			if ( !item.hasAttribute(PatternItem.class) )
-			{
-				if ( item.hasFlag(Lore.class) )
-				{
-					Map<String, List<String>> temp = new HashMap<String, List<String>>();
-					temp.put(item.toString(), escapeLore(item.getLore()));
-					buyList.add(temp);
-				}
-				else
-					buyList.add(item.toString());
-			}
-		}
+               for(var5 = ((Map)item).entrySet().iterator(); var5.hasNext(); stockItem = new StockItem((String)entry.getKey(), (List)entry.getValue())) {
+                  entry = (Entry)var5.next();
+               }
 
-		data.setRaw("sell", sellList);
-		data.setRaw("buy", buyList);
-	}
-	
-	protected List<String> escapeLore(List<String> lore)
-	{
-		if (lore == null) return null;
-		ArrayList<String> escaped = new ArrayList<String>();
-		for (String loreLine : lore) {
-			escaped.add(loreLine.replace('§', '^'));
-		}
-		return escaped;
-	}
+               if(stockItem.getSlot() < 0) {
+                  ((List)this.stock.get("buy")).add(stockItem);
+               } else {
+                  ((List)this.stock.get("buy")).add(0, stockItem);
+               }
+            }
+         }
+      }
 
-	//stock display
-	@Override
-	public Inventory getInventory()
-	{
-		return Bukkit.createInventory(this, getFinalInventorySize(), settings.getStockName());
-	}
+   }
 
-	@Override
-	public Inventory getInventory(TEntityStatus status) {
-		Inventory inventory = getInventory();
-		setInventory(inventory, status);
-		return inventory;
-	}
+   public void save(DataKey data) {
+      dB.info(new Object[]{"Saving traders stock"});
+      ArrayList sellList = new ArrayList();
+      Iterator buyList = ((List)this.stock.get("sell")).iterator();
 
-	@Override
-	public Inventory getManagementInventory(TEntityStatus baseStatus, TEntityStatus status) {
-		Inventory inventory = getInventory();
-		setManagementInventory(inventory, baseStatus, status);
-		return inventory;
-	}
+      while(buyList.hasNext()) {
+         StockItem item = (StockItem)buyList.next();
+         if(!item.hasAttribute(PatternItem.class)) {
+            if(item.hasFlag(Lore.class)) {
+               HashMap item1 = new HashMap();
+               item1.put(item.toString(), this.escapeLore(item.getLore()));
+               sellList.add(item1);
+            } else {
+               sellList.add(item.toString());
+            }
+         }
+      }
 
-	public void setInventory(Inventory inventory, TEntityStatus status)
-	{
-		//debug info
-		dB.info("Setting inventory, status: ", status.name().toLowerCase());
+      ArrayList buyList1 = new ArrayList();
+      Iterator item2 = ((List)this.stock.get("buy")).iterator();
 
-		//clear the inventory
-		inventory.clear();
-		for ( StockItem item : this.stock.get(status.asStock()) )
-		{
-			if (  item.getSlot() < 0 )
-				item.setSlot(inventory.firstEmpty());
+      while(item2.hasNext()) {
+         StockItem item3 = (StockItem)item2.next();
+         if(!item3.hasAttribute(PatternItem.class)) {
+            if(item3.hasFlag(Lore.class)) {
+               HashMap temp = new HashMap();
+               temp.put(item3.toString(), this.escapeLore(item3.getLore()));
+               buyList1.add(temp);
+            } else {
+               buyList1.add(item3.toString());
+            }
+         }
+      }
 
-			//set the lore
-			ItemStack itemStack = item.getItem(false, item.getDescription(status));
+      data.setRaw("sell", sellList);
+      data.setRaw("buy", buyList1);
+   }
 
-			//set the item 
-			inventory.setItem(item.getSlot(), NBTUtils.markItem(itemStack));
-		}
-		setUi(inventory, null, status);
-	}
+   protected List escapeLore(List lore) {
+      if(lore == null) {
+         return null;
+      } else {
+         ArrayList escaped = new ArrayList();
+         Iterator var3 = lore.iterator();
 
-	public void setAmountsInventory(Inventory inventory, TEntityStatus status, StockItem item)
-	{
-		//debug info
-		dB.info("Setting inventory, status: ", TEntityStatus.SELL_AMOUNTS.name().toLowerCase());
+         while(var3.hasNext()) {
+            String loreLine = (String)var3.next();
+            escaped.add(loreLine.replace('\u00a7', '^'));
+         }
 
-		//clear the inventory
-		inventory.clear();
-		for ( Integer amount : item.getAmounts() )
-		{
-			//set new amount
-			ItemStack itemStack = item.getItem(false, item.getDescription(status));
-			itemStack.setAmount(amount);
+         return escaped;
+      }
+   }
 
-			//set the item
-			inventory.setItem(inventory.firstEmpty(), NBTUtils.markItem(itemStack));
-		}
-		setUi(inventory, null, TEntityStatus.SELL_AMOUNTS);
-	}
+   public Inventory getInventory() {
+      return Bukkit.createInventory(this, this.getFinalInventorySize(), this.settings.getStockName());
+   }
 
-	public void setManagementInventory(Inventory inventory, TEntityStatus baseStatus, TEntityStatus status)
-	{
-		//debug info
-		dB.info("Setting management inventory, status: ", status.name().toLowerCase(), ", base status: ", baseStatus.name().toLowerCase());
+   public Inventory getInventory(TEntityStatus status) {
+      Inventory inventory = this.getInventory();
+      this.setInventory(inventory, status);
+      return inventory;
+   }
 
-		//clear the inventory
-		inventory.clear();
-		for ( StockItem item : this.stock.get(baseStatus.asStock()) )
-		{
-			dB.spec(dB.DebugLevel.S3_ATTRIB, "Set inv: ", item);
-			if ( !item.hasAttribute(PatternItem.class) )
-			{
-				if ( item.getSlot() < 0 )
-					item.setSlot(inventory.firstEmpty());
+   public Inventory getManagementInventory(TEntityStatus baseStatus, TEntityStatus status) {
+      Inventory inventory = this.getInventory();
+      this.setManagementInventory(inventory, baseStatus, status);
+      return inventory;
+   }
 
-				//set the lore
-				ItemStack itemStack = item.getItem(false, item.getDescription(status));
-				
+   public void setInventory(Inventory inventory, TEntityStatus status) {
+      dB.info(new Object[]{"Setting inventory, status: ", status.name().toLowerCase()});
+      inventory.clear();
+      Iterator var3 = ((List)this.stock.get(status.asStock())).iterator();
 
-				dB.spec(dB.DebugLevel.S3_ATTRIB, "End item: ", item);
-				//set the item 
-				inventory.setItem(item.getSlot(), NBTUtils.markItem(itemStack));
-			}
-		}
-		setUi(inventory, baseStatus, status);
-	}
+      while(var3.hasNext()) {
+         StockItem item = (StockItem)var3.next();
+         if(item.getSlot() < 0) {
+            item.setSlot(inventory.firstEmpty());
+         }
 
-	public void setUi(Inventory inventory, TEntityStatus baseStatus, TEntityStatus status)
-	{
-		Map<String, ItemStack> items = GlobalSettings.getUiItems();
+         ItemStack itemStack = item.getItem(false, item.getDescription(status));
+         inventory.setItem(item.getSlot(), NBTUtils.markItem(itemStack));
+      }
 
-		//Switch betwean all status values
-		switch(status)
-		{
-		case SELL:
-			// Don't show buy-action when npc doesn't buy anything 
-			if (this.stock.get("buy") != null && this.stock.get("buy").size() > 0) {
-				inventory.setItem(this.getFinalInventorySize() - 1, items.get("buy"));
-			}
-			break;
-		case SELL_AMOUNTS:
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get("back"));
-			break;
-		case BUY:
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get("sell"));
-			break;
-		case MANAGE_SELL:
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get("buy"));
-			inventory.setItem(this.getFinalInventorySize() - 2, items.get("price"));
-			inventory.setItem(this.getFinalInventorySize() - 3, items.get("limit"));
-			inventory.setItem(this.getFinalInventorySize() - 4, items.get("unlock"));
-			break;
-		case MANAGE_BUY:
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get("sell"));
-			inventory.setItem(this.getFinalInventorySize() - 2, items.get("price"));
-			inventory.setItem(this.getFinalInventorySize() - 3, items.get("limit"));
-			inventory.setItem(this.getFinalInventorySize() - 4, items.get("unlock"));
-			break;
-		case MANAGE_UNLOCKED:
-			inventory.setItem(this.getFinalInventorySize() - 4, items.get("lock"));
-			break;
-		case MANAGE_PRICE:
-			inventory.setItem(this.getFinalInventorySize() - 2, items.get("back"));
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get(Stock.opositeStock(baseStatus.asStock())));
-			break;
-		case MANAGE_AMOUNTS:
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get("back"));
-			break;
-		case MANAGE_LIMIT:
-			inventory.setItem(this.getFinalInventorySize() - 3, items.get("back"));
-			inventory.setItem(this.getFinalInventorySize() - 2, items.get("plimit"));
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get(Stock.opositeStock(baseStatus.asStock())));
-			break;
-		case MANAGE_PLIMIT:
-			inventory.setItem(this.getFinalInventorySize() - 3, items.get("back"));
-			inventory.setItem(this.getFinalInventorySize() - 2, items.get("limit"));
-			inventory.setItem(this.getFinalInventorySize() - 1, items.get(Stock.opositeStock(baseStatus.asStock())));
-		default:
-			break;
-		}
-	}
+      this.setUi(inventory, (TEntityStatus)null, status);
+   }
+
+   public void setAmountsInventory(Inventory inventory, TEntityStatus status, StockItem item) {
+      dB.info(new Object[]{"Setting inventory, status: ", TEntityStatus.SELL_AMOUNTS.name().toLowerCase()});
+      inventory.clear();
+      Iterator var4 = item.getAmounts().iterator();
+
+      while(var4.hasNext()) {
+         Integer amount = (Integer)var4.next();
+         ItemStack itemStack = item.getItem(false, item.getDescription(status));
+         itemStack.setAmount(amount.intValue());
+         inventory.setItem(inventory.firstEmpty(), NBTUtils.markItem(itemStack));
+      }
+
+      this.setUi(inventory, (TEntityStatus)null, TEntityStatus.SELL_AMOUNTS);
+   }
+
+   public void setManagementInventory(Inventory inventory, TEntityStatus baseStatus, TEntityStatus status) {
+      dB.info(new Object[]{"Setting management inventory, status: ", status.name().toLowerCase(), ", base status: ", baseStatus.name().toLowerCase()});
+      inventory.clear();
+      Iterator var4 = ((List)this.stock.get(baseStatus.asStock())).iterator();
+
+      while(var4.hasNext()) {
+         StockItem item = (StockItem)var4.next();
+         dB.spec(dB.DebugLevel.S3_ATTRIB, new Object[]{"Set inv: ", item});
+         if(!item.hasAttribute(PatternItem.class)) {
+            if(item.getSlot() < 0) {
+               item.setSlot(inventory.firstEmpty());
+            }
+
+            ItemStack itemStack = item.getItem(false, item.getDescription(status));
+            Name name = (Name)item.getAttribute(Name.class, false);
+            if(name != null) {
+               name.onAssign(itemStack, false);
+            }
+
+            StoredEnchant storedEnchant = (StoredEnchant)item.getAttribute(StoredEnchant.class, false);
+            if(storedEnchant != null) {
+               storedEnchant.onAssign(itemStack, false);
+            }
+
+            Enchants enchants = (Enchants)item.getAttribute(Enchants.class, false);
+            if(enchants != null) {
+               enchants.onAssign(itemStack, false);
+            }
+
+            Skull skull = (Skull)item.getAttribute(Skull.class, false);
+            if(skull != null) {
+               skull.onAssign(itemStack, false);
+            }
+
+            dB.spec(dB.DebugLevel.S3_ATTRIB, new Object[]{"End item: ", item});
+            inventory.setItem(item.getSlot(), NBTUtils.markItem(itemStack));
+         }
+      }
+
+      this.setUi(inventory, baseStatus, status);
+   }
+
+   public void setUi(Inventory inventory, TEntityStatus baseStatus, TEntityStatus status) {
+      Map items = GlobalSettings.getUiItems();
+      switch(status) {
+         case SELL:
+         if(this.stock.get("buy") != null && ((List)this.stock.get("buy")).size() > 0) {
+            inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("buy"));
+         }
+         break;
+         case SELL_AMOUNTS:
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("back"));
+         break;
+         case BUY:
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("sell"));
+         break;
+         case MANAGE_SELL:
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("buy"));
+         inventory.setItem(this.getFinalInventorySize() - 2, (ItemStack)items.get("price"));
+         inventory.setItem(this.getFinalInventorySize() - 3, (ItemStack)items.get("limit"));
+         inventory.setItem(this.getFinalInventorySize() - 4, (ItemStack)items.get("unlock"));
+         break;
+         case MANAGE_BUY:
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("sell"));
+         inventory.setItem(this.getFinalInventorySize() - 2, (ItemStack)items.get("price"));
+         inventory.setItem(this.getFinalInventorySize() - 3, (ItemStack)items.get("limit"));
+         inventory.setItem(this.getFinalInventorySize() - 4, (ItemStack)items.get("unlock"));
+         break;
+         case MANAGE_UNLOCKED:
+         inventory.setItem(this.getFinalInventorySize() - 4, (ItemStack)items.get("lock"));
+         break;
+         case MANAGE_PRICE:
+         inventory.setItem(this.getFinalInventorySize() - 2, (ItemStack)items.get("back"));
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get(Stock.opositeStock(baseStatus.asStock())));
+         break;
+         case MANAGE_AMOUNTS:
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get("back"));
+         break;
+         case MANAGE_LIMIT:
+         inventory.setItem(this.getFinalInventorySize() - 3, (ItemStack)items.get("back"));
+         inventory.setItem(this.getFinalInventorySize() - 2, (ItemStack)items.get("plimit"));
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get(Stock.opositeStock(baseStatus.asStock())));
+         break;
+         case MANAGE_PLIMIT:
+         inventory.setItem(this.getFinalInventorySize() - 3, (ItemStack)items.get("back"));
+         inventory.setItem(this.getFinalInventorySize() - 2, (ItemStack)items.get("limit"));
+         inventory.setItem(this.getFinalInventorySize() - 1, (ItemStack)items.get(Stock.opositeStock(baseStatus.asStock())));
+      }
+
+   }
 }

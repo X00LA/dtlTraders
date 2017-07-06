@@ -2,306 +2,182 @@ package net.dandielo.citizens.traders_v3.traders.setting;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.inventory.meta.ItemMeta;
-
-import net.dandielo.citizens.traders_v3.core.dB;
 import net.dandielo.citizens.traders_v3.core.PluginSettings;
+import net.dandielo.citizens.traders_v3.core.dB;
 import net.dandielo.citizens.traders_v3.core.locale.LocaleManager;
 import net.dandielo.citizens.traders_v3.core.tools.StringTools;
 import net.dandielo.citizens.traders_v3.traders.limits.LimitManager;
 import net.dandielo.citizens.traders_v3.utils.ItemUtils;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
 
 public class GlobalSettings extends PluginSettings {
-	//the trader soncig section
-	protected static ConfigurationSection tConfig;
 
-	//transaction settings
-	protected static boolean doubleClick;
-	
-	//manage settings
-	protected static Map<ItemStack, Double> specialBlocks = new HashMap<ItemStack, Double>();
-	protected static Map<ItemStack, Long> timeoutBlocks = new HashMap<ItemStack, Long>();
-	protected static String mmStockStart;
-	protected static ItemStack mmItemToggle; 
-	protected static boolean mmRightToggle; 
-	protected static boolean mmEnableDamage;
+   protected static ConfigurationSection tConfig;
+   protected static boolean doubleClick;
+   protected static Map specialBlocks = new HashMap();
+   protected static Map timeoutBlocks = new HashMap();
+   protected static String mmStockStart;
+   protected static ItemStack mmItemToggle;
+   protected static boolean mmRightToggle;
+   protected static boolean mmEnableDamage;
+   protected static int stockSize;
+   protected static String stockNameFormat;
+   protected static String stockStart;
+   protected static String walletType;
+   protected static double walletMoney;
+   protected static List defaultPatterns;
+   protected static String patternFile;
+   protected static int playerTraderLimit;
+   protected static int playerStockSize;
+   protected static String playerStockNameFormat;
+   protected static Map uiItems = new HashMap();
 
-	//stock settings
-	protected static int stockSize;
-	protected static String stockNameFormat;
-	protected static String stockStart;
 
-	//wallet settings
-	protected static String walletType;
-	protected static double walletMoney;
+   public static void initGlobalSettings() {
+      dB.info(new Object[]{"Loading general trader configuration"});
+      tConfig = config.getConfigurationSection("trader");
+      doubleClick = tConfig.getBoolean("transaction.double-click", false);
+      mmStockStart = tConfig.getString("managing.start-stock", "sell");
+      mmItemToggle = ItemUtils.createItemStack(tConfig.getString("managing.item", "air"));
+      mmRightToggle = tConfig.getBoolean("managing.right-click", false);
 
-	//pattern settings
-	protected static List<String> defaultPatterns;// = new ArrayList<String>();
-	protected static String patternFile;
+      List e;
+      Iterator var1;
+      String entry;
+      String[] data;
+      try {
+         e = tConfig.getList("managing.special-blocks");
+         var1 = e.iterator();
 
-	//player trader settings
-	protected static int playerTraderLimit;
-	protected static int playerStockSize;
-	protected static String playerStockNameFormat;
-	
-	//UI settings
-	protected static Map<String, ItemStack> uiItems = new HashMap<String, ItemStack>();
+         while(var1.hasNext()) {
+            entry = (String)var1.next();
+            data = entry.split(" ");
+            specialBlocks.put(ItemUtils.createItemStack(data[0]), Double.valueOf(Double.parseDouble(data[1])));
+         }
+      } catch (Exception var6) {
+         dB.high(new Object[]{"While loading special blocks, a exception occured"});
+         dB.high(new Object[]{"Exception: ", var6.getClass().getSimpleName()});
+         dB.normal(new Object[]{"Exception message: ", var6.getMessage()});
+         dB.normal(new Object[]{"StackTrace: ", var6.getStackTrace()});
+      }
 
-	//load global settings
-	@SuppressWarnings("unchecked")
-	public static void initGlobalSettings()
-	{
-		//debug info
-		dB.info("Loading general trader configuration");
-		
-		//get trader section
-		tConfig = config.getConfigurationSection("trader");
+      try {
+         e = tConfig.getList("managing.time-blocks");
+         var1 = e.iterator();
 
-		//load transaction settings
-		doubleClick = tConfig.getBoolean("transaction.double-click", false);
-	//	logEnabled
-	//	logFormat
-		
-		
-		//load managing settings
-		mmStockStart = tConfig.getString("managing.start-stock", "sell");
-		mmItemToggle = ItemUtils.createItemStack(tConfig.getString("managing.item", "air"));
-		mmRightToggle = tConfig.getBoolean("managing.right-click", false);
+         while(var1.hasNext()) {
+            entry = (String)var1.next();
+            data = entry.split(" ", 2);
+            timeoutBlocks.put(ItemUtils.createItemStack(data[0]), Long.valueOf(LimitManager.parseTimeout(data[1])));
+         }
+      } catch (Exception var5) {
+         dB.high(new Object[]{"While loading timeout-blocks blocks, a exception occured"});
+         dB.high(new Object[]{"Exception: ", var5.getClass().getSimpleName()});
+         dB.normal(new Object[]{"Exception message: ", var5.getMessage()});
+         dB.normal(new Object[]{"StackTrace: ", StringTools.stackTrace(var5.getStackTrace())});
+      }
 
-		try
-		{
-			List<String> specials = (List<String>) tConfig.getList("managing.special-blocks");
-			for ( String entry : specials )
-			{
-				String[] data = entry.split(" ");
-				specialBlocks.put(ItemUtils.createItemStack(data[0]), Double.parseDouble(data[1]));
-			}
-		}
-		catch(Exception e)
-		{
-			//debug high
-			dB.high("While loading special blocks, a exception occured");
-			dB.high("Exception: ", e.getClass().getSimpleName());
-			
-			//debug normal
-			dB.normal("Exception message: ", e.getMessage());
-			dB.normal("StackTrace: ", e.getStackTrace());
-		}
+      stockStart = tConfig.getString("stock.start-stock", "sell");
+      stockSize = tConfig.getInt("stock.size", 6);
+      stockNameFormat = tConfig.getString("stock.format", "{npc}\'s shop");
+      walletType = tConfig.getString("wallet.type", "infinite");
+      walletMoney = tConfig.getDouble("wallet.money", 0.0D);
 
-		try
-		{
-			List<String> specials = (List<String>) tConfig.getList("managing.time-blocks");
-			for ( String entry : specials )
-			{
-				String[] data = entry.split(" ", 2);
-				timeoutBlocks.put(ItemUtils.createItemStack(data[0]), LimitManager.parseTimeout(data[1]));
-			}
-		}
-		catch(Exception e)
-		{
-			//debug high
-			dB.high("While loading timeout-blocks blocks, a exception occured");
-			dB.high("Exception: ", e.getClass().getSimpleName());
-			
-			//debug normal
-			dB.normal("Exception message: ", e.getMessage());
-			dB.normal("StackTrace: ", StringTools.stackTrace(e.getStackTrace()));
-		}
-		
-		//load stock settings
-		stockStart = tConfig.getString("stock.start-stock", "sell");
-		stockSize = tConfig.getInt("stock.size", 6);
-		stockNameFormat = tConfig.getString("stock.format", "{npc}\'s shop");
+      try {
+         defaultPatterns = tConfig.getList("pattern.defaults", new ArrayList());
+         patternFile = tConfig.getString("pattern.file", "patterns.yml");
+      } catch (Exception var4) {
+         dB.high(new Object[]{"While loading pattern defaults, a exception occured"});
+         dB.high(new Object[]{"Exception: ", var4.getClass().getSimpleName()});
+         dB.normal(new Object[]{"Exception message: ", var4.getMessage()});
+         dB.normal(new Object[]{"StackTrace: ", StringTools.stackTrace(var4.getStackTrace())});
+      }
 
-		//load wallet settings
-		walletType = tConfig.getString("wallet.type", "infinite");
-		walletMoney = tConfig.getDouble("wallet.money", 0.0);
+      playerTraderLimit = tConfig.getInt("player.limit", 1);
+      playerStockSize = tConfig.getInt("player.size", 6);
+      playerStockNameFormat = tConfig.getString("player.format", "{npc}\'s shop");
+      uiItems.put("sell", asUIItem("ui.sell", "wool:1"));
+      uiItems.put("buy", asUIItem("ui.buy", "wool:2"));
+      uiItems.put("back", asUIItem("ui.back", "wool:14"));
+      uiItems.put("price", asUIItem("ui.price", "wool:15"));
+      uiItems.put("limit", asUIItem("ui.limit", "wool:3"));
+      uiItems.put("plimit", asUIItem("ui.plimit", "wool:6"));
+      uiItems.put("lock", asUIItem("ui.lock", "wool:4"));
+      uiItems.put("unlock", asUIItem("ui.unlock", "wool:5"));
+   }
 
-		//load pattern settings
-		try
-		{
-			defaultPatterns = (List<String>) tConfig.getList("pattern.defaults", new ArrayList<String>());
-			patternFile = tConfig.getString("pattern.file", "patterns.yml");
-		}
-		catch(Exception e)
-		{
-			//debug high
-			dB.high("While loading pattern defaults, a exception occured");
-			dB.high("Exception: ", e.getClass().getSimpleName());
-			
-			//debug normal
-			dB.normal("Exception message: ", e.getMessage());
-			dB.normal("StackTrace: ", StringTools.stackTrace(e.getStackTrace()));
-		}
-		
-		//load books settings
-	//	bookFile
-	//	bookSaving
+   private static ItemStack asUIItem(String ID, String defID) {
+      ItemStack item = ItemUtils.createItemStack(tConfig.getString(ID, defID));
+      ItemMeta meta = item.getItemMeta();
+      meta.setDisplayName(LocaleManager.locale.getName(ID.substring(3)));
+      meta.setLore(LocaleManager.locale.getLore(ID.substring(3)));
+      item.setItemMeta(meta);
+      return item;
+   }
 
-		//load player trader settings
-		playerTraderLimit = tConfig.getInt("player.limit", 1);
-		playerStockSize = tConfig.getInt("player.size", 6);
-		playerStockNameFormat = tConfig.getString("player.format", "{npc}\'s shop");
+   public static String getGlobalStockNameFormat() {
+      return stockNameFormat;
+   }
 
-		//load UI settings
-		uiItems.put("sell", asUIItem("ui.sell", "wool:1"));
-		uiItems.put("buy", asUIItem("ui.buy", "wool:2"));
-		uiItems.put("back", asUIItem("ui.back", "wool:14"));
-		uiItems.put("price", asUIItem("ui.price", "wool:15"));
-		uiItems.put("limit", asUIItem("ui.limit", "wool:3"));
-		uiItems.put("plimit", asUIItem("ui.plimit", "wool:6"));
-		uiItems.put("lock", asUIItem("ui.lock", "wool:4"));
-		uiItems.put("unlock", asUIItem("ui.unlock", "wool:5"));
-		
-		//load denizen settings
-	}
-	
-	/**
-	 * Create as item used for the ui, this item will contain a name and lore with a description for the given option that it handles
-	 * @param ID
-	 * the item ID 
-	 * @param defID
-	 * the default ID
-	 * @return
-	 * the ready UI item
-	 */
-	private static ItemStack asUIItem(String ID, String defID)
-	{
-		//create the item
-		ItemStack item = ItemUtils.createItemStack(tConfig.getString(ID, defID));
-		ItemMeta meta = item.getItemMeta();
-		
-		//get the name and lore for the item
-		meta.setDisplayName(LocaleManager.locale.getName(ID.substring(3)));
-		meta.setLore(LocaleManager.locale.getLore(ID.substring(3)));
-		
-		//set the new meta
-		item.setItemMeta(meta);
-		
-		//return the UI item
-		return item;
-	}
+   public static String getGlobalStockStart() {
+      return stockStart;
+   }
 
-	/**
-	 * @return
-	 * the default format for stock names
-	 */
-	public static String getGlobalStockNameFormat()
-	{
-		return stockNameFormat;
-	}
-	
-	/**
-	 * @return
-	 * the default starting stock for each trader
-	 */
-	public static String getGlobalStockStart()
-	{
-		return stockStart;
-	}
+   public static int getGlobalStockSize() {
+      return stockSize;
+   }
 
-	/**
-	 * @return
-	 * default stock size
-	 */
-	public static int getGlobalStockSize()
-	{
-		return stockSize;
-	}
-	
-	/**
-	 * @return
-	 * true if toggling manager mode should be done with right click instead of left click
-	 */
-	public static boolean mmRightToggle()
-	{
-		return mmRightToggle;
-	}
-	
-	/**
-	 * @return
-	 * true if the trader can be damaged by players
-	 */
-	public static boolean mmEnableDamage()
-	{
-		return mmEnableDamage;
-	}
-	
-	/**
-	 * @return
-	 * the item that should be used for toggling. If air is set any item is valid.
-	 */
-	public static ItemStack mmItemToggle()
-	{
-		return mmItemToggle;
-	}
+   public static boolean mmRightToggle() {
+      return mmRightToggle;
+   }
 
-	/**
-	 * @return
-	 * true if players need to min double click on an item to buy it
-	 */
-	public static boolean dClickEvent()
-	{
-		return doubleClick;
-	}
+   public static boolean mmEnableDamage() {
+      return mmEnableDamage;
+   }
 
-	/**
-	 * @param item
-	 * checks the item if its a special block
-	 * @return
-	 * the special block value, or 1 if no block was found
-	 */
-	public static double getBlockValue(ItemStack item)
-	{
-		ItemStack tempItem = new ItemStack(item.getType());
-		tempItem.setAmount(1);
-		return specialBlocks.containsKey(tempItem) ? specialBlocks.get(tempItem) : 1.0;
-	}
-	
-	/**
-	 * @param item
-	 * checks the item if its a special block
-	 * @return
-	 * the special block value, or 1 if no block was found
-	 */
-	public static long getBlockTimeoutValue(ItemStack item)
-	{
-		ItemStack tempItem = new ItemStack(item.getType());
-		tempItem.setAmount(1);
-		return timeoutBlocks.containsKey(tempItem) ? timeoutBlocks.get(tempItem) : 1;
-	}
-	
-	/**
-	 * gets all declared items to use in trader stock UI 
-	 * @return
-	 */
-	public static Map<String, ItemStack> getUiItems()
-	{
-		return uiItems;
-	}
+   public static ItemStack mmItemToggle() {
+      return mmItemToggle;
+   }
 
-	public static String getDefaultWallet()
-	{
-		return walletType;
-	}
-	
-	public static double getWalletStartBalance()
-	{
-		return walletMoney;
-	}
-	
-	public static String getPatternFile()
-	{
-		return patternFile;
-	}
-	
-	public static List<String> defaultPatterns()
-	{
-		return defaultPatterns;
-	}
+   public static boolean dClickEvent() {
+      return doubleClick;
+   }
+
+   public static double getBlockValue(ItemStack item) {
+      ItemStack tempItem = new ItemStack(item.getType());
+      tempItem.setAmount(1);
+      return specialBlocks.containsKey(tempItem)?((Double)specialBlocks.get(tempItem)).doubleValue():1.0D;
+   }
+
+   public static long getBlockTimeoutValue(ItemStack item) {
+      ItemStack tempItem = new ItemStack(item.getType());
+      tempItem.setAmount(1);
+      return timeoutBlocks.containsKey(tempItem)?((Long)timeoutBlocks.get(tempItem)).longValue():1L;
+   }
+
+   public static Map getUiItems() {
+      return uiItems;
+   }
+
+   public static String getDefaultWallet() {
+      return walletType;
+   }
+
+   public static double getWalletStartBalance() {
+      return walletMoney;
+   }
+
+   public static String getPatternFile() {
+      return patternFile;
+   }
+
+   public static List defaultPatterns() {
+      return defaultPatterns;
+   }
+
 }

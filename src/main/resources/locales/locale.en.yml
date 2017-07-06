@@ -123,6 +123,10 @@ ui:
     name: ^r^6Limit management
     lore:
     - ^7Click to toggle limit managing
+  plimit:
+    name: ^r^6Player limit management
+    lore:
+    - ^7Click to toggle player limit managing
   lock:
     name: ^r^6Lock stock
     lore:
@@ -172,10 +176,10 @@ ui:
     - '^6Click to buy this item'
   item-player-sell:
     lore:
-    - '^6Click to sell this item'
+    - '^6Click inventory to sell this item'
   item-player-buy:
     lore:
-    - '^6Click to sell this item'
+    - '^6Click inventory to sell this item'
   item-buy:
     lore:
     - '^6Click on this item in'

@@ -1,253 +1,211 @@
 package net.dandielo.citizens.traders_v3.utils.items.attributes;
 
+import java.util.Iterator;
 import java.util.List;
-
-import org.bukkit.ChatColor;
-import org.bukkit.entity.Player;
-
 import net.dandielo.citizens.traders_v3.core.locale.LocaleManager;
-import net.dandielo.citizens.traders_v3.traders.stock.StockItem;
 import net.dandielo.citizens.traders_v3.traders.transaction.CurrencyHandler;
 import net.dandielo.citizens.traders_v3.traders.transaction.TransactionInfo;
 import net.dandielo.citizens.traders_v3.utils.items.StockItemAttribute;
 import net.dandielo.core.items.dItem;
 import net.dandielo.core.items.serialize.Attribute;
+import org.bukkit.ChatColor;
+import org.bukkit.entity.Player;
 
 @Attribute(
-		name = "Player Resources Currency", 
-		key = "p", sub = {"h", "f", "e", "l"}, 
-		standalone = true, priority = 0)
-//		status = {TEntityStatus.BUY, TEntityStatus.SELL, TEntityStatus.SELL_AMOUNTS, TEntityStatus.MANAGE_PRICE})
+   name = "Player Resources Currency",
+   key = "p",
+   sub = {"h", "f", "e", "l"},
+   standalone = true,
+   priority = 0
+)
 public class PlayerResourcesCurrency extends StockItemAttribute implements CurrencyHandler {
-	private int experience;
-	private double health; 
-	private int level;
-	private int food;
 
-	public PlayerResourcesCurrency(dItem item, String key, String sub) {
-		super(item, key, sub);
-	}
+   private int experience;
+   private double health;
+   private int level;
+   private int food;
 
-	@Override
-	public boolean finalizeTransaction(TransactionInfo info) {
-		String stock = info.getStock().name().toLowerCase();
-		Player player = info.getPlayerParticipant();
-		int amount = info.getAmount();
-		if (stock.equals("sell"))
-		{
-			if (getSubkey().equals("h"))
-				player.setHealth(player.getHealth() - health * ((double)amount));
-			if (getSubkey().equals("f"))
-				player.setFoodLevel(player.getFoodLevel() - food * amount);
-			if (getSubkey().equals("e"))
-				giveSilentExperience(player, (int) (-experience * info.getTotalScaling()));
-			if (getSubkey().equals("l"))
-				player.setLevel(player.getLevel() - level * amount);
-		}
-		else if (stock.equals("buy"))
-		{
-			if (getSubkey().equals("h"))
-			{
-				double hp = health * amount + player.getHealth();
-				player.setHealth(hp > player.getMaxHealth() ? player.getMaxHealth() : hp);
-			}
-			if (getSubkey().equals("f"))
-			{
-				int fd = food * amount + player.getFoodLevel();
-				player.setFoodLevel(fd > 20 ? 20 : fd);
-			}
-			if (getSubkey().equals("e"))
-			{
-				giveSilentExperience(player, (int) (experience * info.getTotalScaling()));
-			}
-			if (getSubkey().equals("l"))
-			{
-				player.setLevel(player.getLevel() + level * amount);
-			}
-		}
-		return true;
-	} 
 
-	@Override
-	public boolean allowTransaction(TransactionInfo info) {
-		String stock = info.getStock().name().toLowerCase();
-		Player player = info.getPlayerParticipant();
-		int amount = info.getAmount();
-		if (stock.equals("sell"))
-		{
-			if (getSubkey().equals("h"))
-				return player.getHealth() > (((double)amount) * health);
-			if (getSubkey().equals("f"))
-				return player.getFoodLevel() >= food * amount;
-			if (getSubkey().equals("e"))
-				return getTotalExperience(player) >= (int) (info.getTotalScaling() * experience);	
-			if (getSubkey().equals("l"))
-				return player.getLevel() >= amount * level;					
-		}
-		else if (stock.equals("buy")) 
-		{
-			return info.getBuyer() != null;
-		}
-		return false;
-	}
+   public PlayerResourcesCurrency(dItem item, String key, String sub) {
+      super(item, key, sub);
+   }
 
-	@Override
-	public double getTotalPrice(TransactionInfo info) {
-		if (getSubkey().equals("h"))
-			return health * info.getAmount();
-		if (getSubkey().equals("f"))
-			return food * info.getAmount();
-		if (getSubkey().equals("e"))
-			return (int)(experience * info.getTotalScaling());
-		if (getSubkey().equals("l"))
-			return level * info.getAmount();
-		return 0.0;
-	}
+   public boolean finalizeTransaction(TransactionInfo info) {
+      String stock = info.getStock().name().toLowerCase();
+      Player player = info.getPlayerParticipant();
+      int amount = info.getAmount();
+      if(stock.equals("sell")) {
+         if(this.getSubkey().equals("h")) {
+            player.setHealth(player.getHealth() - this.health * (double)amount);
+         }
 
-	@Override
-	public void getDescription(TransactionInfo info, List<String> lore) {
-		int amount = info.getAmount();
-		LocaleManager lm = LocaleManager.locale; 
-		ChatColor mReqColor = this.allowTransaction(info) ? ChatColor.GREEN : ChatColor.RED;
-		for (String lLine : lm.getLore("item-currency-price"))
-		{
-			if (getSubkey().equals("h"))
-			{
-				lore.add(
-						lLine
-						.replace("{amount}", String.valueOf(amount * health))
-						.replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("health-points"))
-						);
-			}
-			if (getSubkey().equals("f"))
-			{
-				lore.add(
-						lLine
-						.replace("{amount}", String.valueOf(amount * food))
-						.replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("food-level"))
-						);
-			}
-			if (getSubkey().equals("e"))
-			{
-				lore.add(
-						lLine
-						.replace("{amount}", String.valueOf(info.getTotalScaling() * experience))
-						.replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("experience"))
-						);
-			}
-			if (getSubkey().equals("l"))
-			{
-				lore.add(
-						lLine
-						.replace("{amount}", String.valueOf(amount * level))
-						.replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("level"))
-						);
-			}
-		}
-	}
-	
-	@Override
-	public String getName() {
-		if (getSubkey().equals("h"))
-			return "Health currency";
-		if (getSubkey().equals("f"))
-			return "Food currency";
-		if (getSubkey().equals("e"))
-			return "Experience currency";
-		if (getSubkey().equals("l"))
-			return "Level currency";
-		return "Error!";
-	}
+         if(this.getSubkey().equals("f")) {
+            player.setFoodLevel(player.getFoodLevel() - this.food * amount);
+         }
 
-	@Override
-	public boolean deserialize(String data)  {
-		if (data == "") return false;
-		if (getSubkey().equals("h"))
-			health = Double.parseDouble(data);
-		if (getSubkey().equals("f"))
-			food = Integer.parseInt(data);
-		if (getSubkey().equals("e"))
-			experience = Integer.parseInt(data);
-		if (getSubkey().equals("l"))
-			level = Integer.parseInt(data);
-		return true;
-	}
+         if(this.getSubkey().equals("e")) {
+            giveSilentExperience(player, (int)((double)(-this.experience) * info.getTotalScaling()));
+         }
 
-	@Override
-	public String serialize() {
-		if (getSubkey().equals("h"))
-			return String.valueOf(health);
-		if (getSubkey().equals("f"))
-			return String.valueOf(food);
-		if (getSubkey().equals("e"))
-			return String.valueOf(experience);
-		if (getSubkey().equals("l"))
-			return String.valueOf(level);
-		return "";
-	}
-	
-	//Experience helpers
-	// with help from Denizen authors
-	// https://github.com/DenizenScript/Denizen-For-Bukkit/blob/master/src/main/java/net/aufdemrand/denizen/scripts/commands/player/ExperienceCommand.java
-	public static int getTotalExperience(Player p) {
-		return getTotalExperience(p.getLevel(), p.getExp());
-	}
-	
-	public static int getTotalExperience(int level, double bar) {
-		return getTotalExpToLevel(level) + (int) (getExpToLevel(level + 1) * bar + 0.5);
-	}
+         if(this.getSubkey().equals("l")) {
+            player.setLevel(player.getLevel() - this.level * amount);
+         }
+      } else if(stock.equals("buy")) {
+         if(this.getSubkey().equals("h")) {
+            double fd = this.health * (double)amount + player.getHealth();
+            player.setHealth(fd > player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getBaseValue()?player.getAttribute(org.bukkit.attribute.Attribute.GENERIC_MAX_HEALTH).getBaseValue():fd);
+         }
 
-	public static int getExpToLevel(int level) {
-		if (level < 16) {
-			return 17;
-		}
-		else if (level < 31) {
-			return 3 * level - 31;
-		}
-		else {
-			return 7 * level - 155;
-		}
-	}
-	
-	public static int getTotalExpToLevel(int level) {
-		if (level < 16) {
-			return 17 * level;
-		}
-		else if (level < 31) {
-			return (int) (1.5 * level * level - 29.5 * level + 360 );
-		}
-		else {
-			return (int) (3.5 * level * level - 151.5 * level + 2220);
-		}
-	}
+         if(this.getSubkey().equals("f")) {
+            int fd1 = this.food * amount + player.getFoodLevel();
+            player.setFoodLevel(fd1 > 20?20:fd1);
+         }
 
-	public static void resetExperience(Player player) {
-		player.setTotalExperience(0);
-		player.setLevel(0);
-		player.setExp(0);
-	}
+         if(this.getSubkey().equals("e")) {
+            giveSilentExperience(player, (int)((double)this.experience * info.getTotalScaling()));
+         }
 
-	/* Tail recursive way to count the level for the given exp, maybe better with iteration */
-	public static int countLevel(int exp, int toLevel, int level) {
-		if (exp < toLevel) {
-			return level;
-		}
-		else {
-			return countLevel(exp - toLevel, getTotalExpToLevel(level + 2) - getTotalExpToLevel(level + 1), ++level);
-		}
-	}
+         if(this.getSubkey().equals("l")) {
+            player.setLevel(player.getLevel() + this.level * amount);
+         }
+      }
 
-	/* Adding experience using the setExp and setLevel methods, should be soundless (not tested) */
-	public static void giveSilentExperience(Player player, int exp) {
-		final int currentExp = getTotalExperience(player);
-		resetExperience(player);
-		final int newexp = currentExp + exp;
-		
-		if (newexp > 0) {
-			final int level = countLevel(newexp, 17, 0);
-			player.setLevel(level);
-			final int epxToLvl = newexp - getTotalExpToLevel(level);
-			player.setExp(epxToLvl < 0 ? 0.0f : (float)epxToLvl / (float)getExpToLevel(level + 1));
-		}
-	}
+      return true;
+   }
+
+   public boolean allowTransaction(TransactionInfo info) {
+      String stock = info.getStock().name().toLowerCase();
+      Player player = info.getPlayerParticipant();
+      int amount = info.getAmount();
+      if(stock.equals("sell")) {
+         if(this.getSubkey().equals("h")) {
+            return player.getHealth() > (double)amount * this.health;
+         }
+
+         if(this.getSubkey().equals("f")) {
+            return player.getFoodLevel() >= this.food * amount;
+         }
+
+         if(this.getSubkey().equals("e")) {
+            return getTotalExperience(player) >= (int)(info.getTotalScaling() * (double)this.experience);
+         }
+
+         if(this.getSubkey().equals("l")) {
+            return player.getLevel() >= amount * this.level;
+         }
+      } else if(stock.equals("buy")) {
+         return info.getBuyer() != null;
+      }
+
+      return false;
+   }
+
+   public double getTotalPrice(TransactionInfo info) {
+      return this.getSubkey().equals("h")?this.health * (double)info.getAmount():(this.getSubkey().equals("f")?(double)(this.food * info.getAmount()):(this.getSubkey().equals("e")?(double)((int)((double)this.experience * info.getTotalScaling())):(this.getSubkey().equals("l")?(double)(this.level * info.getAmount()):0.0D)));
+   }
+
+   public void getDescription(TransactionInfo info, List lore) {
+      int amount = info.getAmount();
+      LocaleManager lm = LocaleManager.locale;
+      ChatColor mReqColor = this.allowTransaction(info)?ChatColor.GREEN:ChatColor.RED;
+      Iterator var6 = lm.getLore("item-currency-price").iterator();
+
+      while(var6.hasNext()) {
+         String lLine = (String)var6.next();
+         if(this.getSubkey().equals("h")) {
+            lore.add(lLine.replace("{amount}", String.valueOf((double)amount * this.health)).replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("health-points")));
+         }
+
+         if(this.getSubkey().equals("f")) {
+            lore.add(lLine.replace("{amount}", String.valueOf(amount * this.food)).replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("food-level")));
+         }
+
+         if(this.getSubkey().equals("e")) {
+            lore.add(lLine.replace("{amount}", String.valueOf(info.getTotalScaling() * (double)this.experience)).replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("experience")));
+         }
+
+         if(this.getSubkey().equals("l")) {
+            lore.add(lLine.replace("{amount}", String.valueOf(amount * this.level)).replace("{text}", " ").replace("{currency}", mReqColor + lm.getKeyword("level")));
+         }
+      }
+
+   }
+
+   public String getName() {
+      return this.getSubkey().equals("h")?"Health currency":(this.getSubkey().equals("f")?"Food currency":(this.getSubkey().equals("e")?"Experience currency":(this.getSubkey().equals("l")?"Level currency":"Error!")));
+   }
+
+   public boolean deserialize(String data) {
+      if(data == "") {
+         return false;
+      } else {
+         if(this.getSubkey().equals("h")) {
+            this.health = Double.parseDouble(data);
+         }
+
+         if(this.getSubkey().equals("f")) {
+            this.food = Integer.parseInt(data);
+         }
+
+         if(this.getSubkey().equals("e")) {
+            this.experience = Integer.parseInt(data);
+         }
+
+         if(this.getSubkey().equals("l")) {
+            this.level = Integer.parseInt(data);
+         }
+
+         return true;
+      }
+   }
+
+   public String serialize() {
+      return this.getSubkey().equals("h")?String.valueOf(this.health):(this.getSubkey().equals("f")?String.valueOf(this.food):(this.getSubkey().equals("e")?String.valueOf(this.experience):(this.getSubkey().equals("l")?String.valueOf(this.level):"")));
+   }
+
+   public static int getTotalExperience(Player p) {
+      return getTotalExperience(p.getLevel(), (double)p.getExp());
+   }
+
+   public static int getTotalExperience(int level, double bar) {
+      return getTotalExpToLevel(level) + (int)((double)getExpToLevel(level + 1) * bar + 0.5D);
+   }
+
+   public static int getExpToLevel(int level) {
+      return level < 16?17:(level < 31?3 * level - 31:7 * level - 155);
+   }
+
+   public static int getTotalExpToLevel(int level) {
+      return level < 16?17 * level:(level < 31?(int)(1.5D * (double)level * (double)level - 29.5D * (double)level + 360.0D):(int)(3.5D * (double)level * (double)level - 151.5D * (double)level + 2220.0D));
+   }
+
+   public static void resetExperience(Player player) {
+      player.setTotalExperience(0);
+      player.setLevel(0);
+      player.setExp(0.0F);
+   }
+
+   public static int countLevel(int exp, int toLevel, int level) {
+      if(exp < toLevel) {
+         return level;
+      } else {
+         int var10000 = exp - toLevel;
+         int var10001 = getTotalExpToLevel(level + 2) - getTotalExpToLevel(level + 1);
+         ++level;
+         return countLevel(var10000, var10001, level);
+      }
+   }
+
+   public static void giveSilentExperience(Player player, int exp) {
+      int currentExp = getTotalExperience(player);
+      resetExperience(player);
+      int newexp = currentExp + exp;
+      if(newexp > 0) {
+         int level = countLevel(newexp, 17, 0);
+         player.setLevel(level);
+         int epxToLvl = newexp - getTotalExpToLevel(level);
+         player.setExp(epxToLvl < 0?0.0F:(float)epxToLvl / (float)getExpToLevel(level + 1));
+      }
+
+   }
 }

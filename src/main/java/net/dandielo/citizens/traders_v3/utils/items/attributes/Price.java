@@ -1,116 +1,100 @@
 package net.dandielo.citizens.traders_v3.utils.items.attributes;
 
+import java.util.Iterator;
 import java.util.List;
-
 import net.dandielo.citizens.traders_v3.TEntityStatus;
 import net.dandielo.citizens.traders_v3.core.dB;
-import net.dandielo.citizens.traders_v3.core.dB.DebugLevel;
 import net.dandielo.citizens.traders_v3.core.locale.LocaleManager;
-import net.dandielo.citizens.traders_v3.traders.stock.StockItem;
 import net.dandielo.citizens.traders_v3.traders.transaction.CurrencyHandler;
 import net.dandielo.citizens.traders_v3.traders.transaction.TransactionInfo;
 import net.dandielo.citizens.traders_v3.utils.items.StockItemAttribute;
 import net.dandielo.core.items.dItem;
-
+import net.dandielo.core.items.serialize.Attribute;
 import org.bukkit.ChatColor;
 
-@net.dandielo.core.items.serialize.Attribute(
-		name="Price", key = "p", standalone = true, priority = 0)
+@Attribute(
+   name = "Price",
+   key = "p",
+   standalone = true,
+   priority = 0
+)
 public class Price extends StockItemAttribute implements CurrencyHandler {
-	private double price;
 
-	public Price(dItem item, String key) {
-		super(item, key);
-		price = 0.0;
-	}
-	
-	public double getPrice()
-	{
-		return price;
-	}
+   private double price = 0.0D;
 
-	public void increase(double value)
-	{
-		price += value;
-	}
-	
-	public void decrease(double value)
-	{
-		price = (price -= value) < 0 ? 0 : price;
-	}
-	
-	public void setPrice(double value)
-	{
-		price = value < 0 ? 0 : value;
-	}
 
-	@Override
-	public boolean deserialize(String data)
-	{
-		try
-		{
-			price = Double.parseDouble(data);
-		}
-		catch(NumberFormatException e)
-		{
-			dB.spec(DebugLevel.S2_MAGIC_POWA, "A exception occured when parsing the price");
-			return false;
-		}
-		return true;
-	}
+   public Price(dItem item, String key) {
+      super(item, key);
+   }
 
-	@Override
-	public String serialize()
-	{
-		return String.format("%.2f", price).replace(',', '.');
-	}	
+   public double getPrice() {
+      return this.price;
+   }
 
-	@Override
-	public void getDescription(TEntityStatus status, List<String> lore)
-	{
-		if (!status.inManagementMode()) return;
+   public void increase(double value) {
+      this.price += value;
+   }
 
-		//add the lore to the item
-		double totalPrice = item.hasFlag(".sp") ? price : price * item.getAmount();
-		for ( String pLore : LocaleManager.locale.getLore("item-price-summary") )
-			lore.add(pLore
-					.replace("{unit}", String.format("%.2f", price)).replace(',', '.')
-					.replace("{total}", String.format("%.2f", totalPrice)).replace(',', '.')
-				);
-	}
-	
-	
-	public double getTotalPrice(TransactionInfo info) {
-		return info.getTotalScaling() * price;
-	}
+   public void decrease(double value) {
+      this.price = (this.price -= value) < 0.0D?0.0D:this.price;
+   }
 
-	@Override
-	public boolean finalizeTransaction(TransactionInfo info) {
-		info.getSeller().deposit(info.getTotalScaling() * price);
-		return info.getBuyer().withdraw(info.getTotalScaling() * price);
-	}
+   public void setPrice(double value) {
+      this.price = value < 0.0D?0.0D:value;
+   }
 
-	@Override
-	public boolean allowTransaction(TransactionInfo info) {
-		if (price < 0 || info.getBuyer() == null)
-			return false;
-		return info.getBuyer().check(info.getTotalScaling() * price);
-	}
+   public boolean deserialize(String data) {
+      try {
+         this.price = Double.parseDouble(data);
+         return true;
+      } catch (NumberFormatException var3) {
+         dB.spec(dB.DebugLevel.S2_MAGIC_POWA, new Object[]{"A exception occured when parsing the price"});
+         return false;
+      }
+   }
 
-	@Override
-	public void getDescription(TransactionInfo info, List<String> lore) {
-		ChatColor mReqColor = allowTransaction(info) ? ChatColor.GREEN : ChatColor.RED;
-		
-		//add the Price lore
-		for ( String pLore : LocaleManager.locale.getLore("item-price") )
-			lore.add(pLore
-				.replace("{price}", mReqColor + String.format("%.2f", info.getTotalScaling() * price))
-				.replace(',', '.')
-			);
-	}
+   public String serialize() {
+      return String.format("%.2f", new Object[]{Double.valueOf(this.price)}).replace(',', '.');
+   }
 
-	@Override
-	public String getName() {
-		return "Virtual money";
-	} 
+   public void getDescription(TEntityStatus status, List lore) {
+      if(status.inManagementMode()) {
+         double totalPrice = this.item.hasFlag(".sp")?this.price:this.price * (double)this.item.getAmount();
+         Iterator var5 = LocaleManager.locale.getLore("item-price-summary").iterator();
+
+         while(var5.hasNext()) {
+            String pLore = (String)var5.next();
+            lore.add(pLore.replace("{unit}", String.format("%.2f", new Object[]{Double.valueOf(this.price)})).replace(',', '.').replace("{total}", String.format("%.2f", new Object[]{Double.valueOf(totalPrice)})).replace(',', '.'));
+         }
+
+      }
+   }
+
+   public double getTotalPrice(TransactionInfo info) {
+      return info.getTotalScaling() * this.price;
+   }
+
+   public boolean finalizeTransaction(TransactionInfo info) {
+      info.getSeller().deposit(info.getTotalScaling() * this.price);
+      return info.getBuyer().withdraw(info.getTotalScaling() * this.price);
+   }
+
+   public boolean allowTransaction(TransactionInfo info) {
+      return this.price >= 0.0D && info.getBuyer() != null?info.getBuyer().check(info.getTotalScaling() * this.price):false;
+   }
+
+   public void getDescription(TransactionInfo info, List lore) {
+      ChatColor mReqColor = this.allowTransaction(info)?ChatColor.GREEN:ChatColor.RED;
+      Iterator var4 = LocaleManager.locale.getLore("item-price").iterator();
+
+      while(var4.hasNext()) {
+         String pLore = (String)var4.next();
+         lore.add(pLore.replace("{price}", mReqColor + String.format("%.2f", new Object[]{Double.valueOf(info.getTotalScaling() * this.price)})).replace(',', '.'));
+      }
+
+   }
+
+   public String getName() {
+      return "Virtual money";
+   }
 }

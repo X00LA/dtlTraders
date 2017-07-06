@@ -4,150 +4,144 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 
-public class LimitEntry {	
-	//named ID
-	@SuppressWarnings("unused")
-	private String id;
-	
-	//limit settings
-	private int limit; 
-	private long timeout;
+public class LimitEntry {
 
-	private int playerLimit;
-	private long playerTimeout;
-	
-	//limit usage
-	private Map<String, Map<Long, Integer>> playerUsed;	
-	
-	//constructors
-	public LimitEntry(String id, int limit, long timeout)
-	{
-		//limit id
-		this.id = id;
-		
-		this.limit = limit;
-		this.timeout = timeout;
-		
-		playerLimit = -1;
-		playerTimeout = -1;
-		
-		playerUsed = new HashMap<String, Map<Long, Integer>>();
-	}
-	
-	public LimitEntry(String id, int limit, long timeout, int plimit, long ptimeout)
-	{
-		//limit id
-		this.id = id;
-		
-		this.limit = limit;
-		this.timeout = timeout;
-		
-		playerLimit = plimit;
-		playerTimeout = ptimeout;
-		
-		playerUsed = new HashMap<String, Map<Long, Integer>>();
-	}
-	
-	//methods
-	public void limitRefresh()
-	{
-		long now = new Date().getTime();
-		
-		//remove all timed out data
-		for ( Map<Long, Integer> entries : playerUsed.values() )
-		{
-			Iterator<Map.Entry<Long, Integer>> it = entries.entrySet().iterator();
-			while(it.hasNext())
-			{
-				if (now >= it.next().getKey().longValue() + timeout * 1000)
-				{
-					it.remove();
-				}
-			}
-		}
-	}
-	
-	//methods
-	public int totalPlayer(String palyerEntry)
-	{
-		int result = 0;
-		//get the players total amount
-		for ( Integer value : playerUsed.get(palyerEntry).values() )
-			result += value.intValue();
-		return result;
-	}
-	public int totalUsed()
-	{
-		int result = 0;
-		for(String playerEntry : playerUsed.keySet())
-			result += totalPlayer(playerEntry);
-		return result;
-	}
-	
-	//general methods
-	/**
-	 * Checks if the given amount can be added or subtracted from the limit pool
-	 * <br><br>
-	 * If the <strong>type</strong> equals <i>sell</i> it checks if the player can <i>sell</i> the given
-	 * amount to a trader. Amount should be a negative integer.
-	 * <br>
-	 * If the <strong>type</strong> equals <i>buy</i> it checks if the player can <i>buy</i> the given
-	 * amount from the trader. Amount should be a positive.
-	 */
-	public boolean isAvailable(String type, int amount)
-	{
-		boolean result = false;
-		if (type.equals("buy"))
-		{
-			int h = totalUsed();
-			result = (h>0?0:h) + amount <= limit;
-		}
-		else if (type.equals("sell"))
-		{
-			result = totalUsed() - amount >= 0;
-		}
-		return result;
-	}
-	
-	public boolean isPlayerAvailable(String player, String type, int amount)
-	{
-		return playerLimit == -1 || ( playerUsed.containsKey(player + "@" + type) ? Math.abs(totalPlayer(player + "@" + type)) + Math.abs(amount) <= playerLimit : Math.abs(amount) <= playerLimit );
-	}
-	
-	public void playerUpdate(String player, String type, int amount)
-	{
-		if ( !playerUsed.containsKey(player + "@" + type) )
-			playerUsed.put(player + "@" + type, new HashMap<Long, Integer>());
-		playerUsed.get(player + "@" + type).put(new Date().getTime(), amount);
-	}
-	
-	public void playerLoad(String playerEntry, long time, int amount)
-	{
-		if ( !playerUsed.containsKey(playerEntry) )
-			playerUsed.put(playerEntry, new HashMap<Long, Integer>());
-		playerUsed.get(playerEntry).put(time, amount);
-	}
-	
-	//getters
-	int getLimit()	
-	{
-		return limit;
-	}
-	long getTimeout()
-	{
-		return timeout;
-	}
-	int getPlayerLimit() 
-	{
-		return playerLimit;
-	}
-	long getPlayerTimeout()
-	{
-		return playerTimeout;
-	}
-	Map<String, Map<Long, Integer>> playerEntries()
-	{
-		return playerUsed;
-	}
+   private String id;
+   private int limit;
+   private long timeout;
+   private int playerLimit;
+   private long playerTimeout;
+   private Map playerUsed;
+
+
+   public LimitEntry(String id, int limit, long timeout) {
+      this.id = id;
+      this.limit = limit;
+      this.timeout = timeout;
+      this.playerLimit = -1;
+      this.playerTimeout = -1L;
+      this.playerUsed = new HashMap();
+   }
+
+   public LimitEntry(String id, int limit, long timeout, int plimit, long ptimeout) {
+      this.id = id;
+      this.limit = limit;
+      this.timeout = timeout;
+      this.playerLimit = plimit;
+      this.playerTimeout = ptimeout;
+      this.playerUsed = new HashMap();
+   }
+
+   public void limitRefresh() {
+      if(this.timeout != -1L) {
+         long now = (new Date()).getTime();
+         Iterator var3 = this.playerUsed.values().iterator();
+
+         while(var3.hasNext()) {
+            Map entries = (Map)var3.next();
+            Iterator it = entries.entrySet().iterator();
+
+            while(it.hasNext()) {
+               if(now >= ((Long)((Entry)it.next()).getKey()).longValue() + this.timeout * 1000L) {
+                  it.remove();
+               }
+            }
+         }
+      }
+
+   }
+
+   public int totalPlayer(String palyerEntry) {
+      int result = 0;
+
+      Integer value;
+      for(Iterator var3 = ((Map)this.playerUsed.get(palyerEntry)).values().iterator(); var3.hasNext(); result += value.intValue()) {
+         value = (Integer)var3.next();
+      }
+
+      return result;
+   }
+
+   public int totalUsed() {
+      int result = 0;
+
+      String playerEntry;
+      for(Iterator var2 = this.playerUsed.keySet().iterator(); var2.hasNext(); result += this.totalPlayer(playerEntry)) {
+         playerEntry = (String)var2.next();
+      }
+
+      return result;
+   }
+
+   public boolean isAvailable(String type, int amount) {
+      boolean result = false;
+      if(type.equals("buy")) {
+         int h = this.totalUsed();
+         result = h + amount <= this.limit;
+      } else if(type.equals("sell")) {
+         result = this.totalUsed() + amount <= this.limit;
+      }
+
+      return result;
+   }
+
+   public boolean isPlayerAvailable(String player, String type, int amount) {
+      boolean var10000;
+      if(this.playerLimit != -1) {
+         label25: {
+            if(this.playerUsed.containsKey(player + "@" + type)) {
+               if(Math.abs(this.totalPlayer(player + "@" + type)) + Math.abs(amount) <= this.playerLimit) {
+                  break label25;
+               }
+            } else if(Math.abs(amount) <= this.playerLimit) {
+               break label25;
+            }
+
+            var10000 = false;
+            return var10000;
+         }
+      }
+
+      var10000 = true;
+      return var10000;
+   }
+
+   public void playerUpdate(String player, String type, int amount) {
+      if(!this.playerUsed.containsKey(player + "@" + type)) {
+         this.playerUsed.put(player + "@" + type, new HashMap());
+      }
+
+      long time = (new Date()).getTime();
+      ((Map)this.playerUsed.get(player + "@" + type)).put(Long.valueOf(time), Integer.valueOf(amount));
+   }
+
+   public void playerLoad(String playerEntry, long time, int amount) {
+      if(!this.playerUsed.containsKey(playerEntry)) {
+         this.playerUsed.put(playerEntry, new HashMap());
+      }
+
+      ((Map)this.playerUsed.get(playerEntry)).put(Long.valueOf(time), Integer.valueOf(amount));
+   }
+
+   int getLimit() {
+      return this.limit;
+   }
+
+   long getTimeout() {
+      return this.timeout;
+   }
+
+   int getPlayerLimit() {
+      return this.playerLimit;
+   }
+
+   long getPlayerTimeout() {
+      return this.playerTimeout;
+   }
+
+   Map playerEntries() {
+      return this.playerUsed;
+   }
 }

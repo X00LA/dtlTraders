@@ -2,165 +2,178 @@ package net.dandielo.citizens.traders_v3.traders.patterns.types;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Player;
-
+import java.util.Map.Entry;
 import net.dandielo.citizens.traders_v3.bukkit.Perms;
 import net.dandielo.citizens.traders_v3.core.dB;
 import net.dandielo.citizens.traders_v3.traders.patterns.Pattern;
 import net.dandielo.citizens.traders_v3.traders.stock.StockItem;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
 
 public class ItemPattern extends Pattern {
 
-	private Map<String, List<StockItem>> items;
-	private Map<String, ItemPattern> inherits;
-	private Map<String, ItemPattern> tiers;
+   private Map items;
+   private Map inherits;
+   private Map tiers;
 
-	public ItemPattern(String name)
-	{
-		super(name, Type.ITEM);
 
-		//init all maps
-		items = new HashMap<String, List<StockItem>>();
-		inherits = new HashMap<String, ItemPattern>();
-		tiers = new HashMap<String, ItemPattern>();
-	}
+   public ItemPattern(String name) {
+      super(name, Pattern.Type.ITEM);
+      this.items = new HashMap();
+      this.inherits = new HashMap();
+      this.tiers = new HashMap();
+   }
 
-	public ItemPattern(String name, boolean tier)
-	{
-		this(name);
+   public ItemPattern(String name, boolean tier) {
+      this(name);
+      this.tier = tier;
+   }
 
-		//set the tier to tier
-		this.tier = tier;
-	}
+   public void loadItems(ConfigurationSection data) {
+      ArrayList sell = new ArrayList();
+      ArrayList buy = new ArrayList();
+      this.priority = data.getInt("priority", 0);
+      Iterator var4 = data.getKeys(false).iterator();
 
-	@SuppressWarnings("unchecked")
-	public void loadItems(ConfigurationSection data)
-	{
-		//create both buy and sell lists
-		List<StockItem> sell = new ArrayList<StockItem>();
-		List<StockItem> buy = new ArrayList<StockItem>();
+      while(var4.hasNext()) {
+         String key = (String)var4.next();
+         dB.high(new Object[]{key});
+         Iterator pattern;
+         Object pat;
+         StockItem stockItem;
+         Iterator var9;
+         Entry entry;
+         if(key.equals("all")) {
+            pattern = ((List)data.get("all")).iterator();
 
-		//load the patterns priority
-		priority = data.getInt("priority", 0);
+            while(pattern.hasNext()) {
+               pat = pattern.next();
+               if(pat instanceof String) {
+                  stockItem = new StockItem((String)pat);
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
 
-		//load the patterns items
-		for ( String key : data.getKeys(false) )
-		{
-			dB.high(key);
-			if ( key.equals("all") )
-			{
-				for ( Object item : (List<Object>) data.get("all") ) 
-				{
-					if ( item instanceof String )
-					{
-						StockItem stockItem = new StockItem((String)item);
-						stockItem.addAttribute("pat", String.valueOf(priority));
-						if ( tier ) stockItem.addAttribute("t", getName());
-						
-						sell.add(stockItem);
-						buy.add(stockItem);
-					}
-					else
-					{
-						StockItem stockItem = null;
-						for ( Map.Entry<String, List<String>> entry : ((Map<String, List<String>>) item).entrySet() )
-							stockItem = new StockItem(entry.getKey(), entry.getValue());
+                  sell.add(stockItem);
+                  buy.add(stockItem);
+               } else {
+                  stockItem = null;
 
-						stockItem.addAttribute("pat", String.valueOf(priority));
-						if ( tier ) stockItem.addAttribute("t", getName());
+                  for(var9 = ((Map)pat).entrySet().iterator(); var9.hasNext(); stockItem = new StockItem((String)entry.getKey(), (List)entry.getValue())) {
+                     entry = (Entry)var9.next();
+                  }
 
-						sell.add(stockItem);
-						buy.add(stockItem);
-					}
-				}
-			}
-			else
-				if ( key.equals("sell") )
-				{
-					for ( Object item : (List<Object>) data.get("sell") ) 
-					{
-						if ( item instanceof String )
-						{
-							StockItem stockItem = new StockItem((String)item);
-							stockItem.addAttribute("pat", String.valueOf(priority));
-							if ( tier ) stockItem.addAttribute("t", getName());
-							
-							sell.add(stockItem);
-						}
-						else
-						{
-							StockItem stockItem = null;
-							for ( Map.Entry<String, List<String>> entry : ((Map<String, List<String>>) item).entrySet() )
-								stockItem = new StockItem(entry.getKey(), entry.getValue());
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
 
-							stockItem.addAttribute("pat", String.valueOf(priority));
-							if ( tier ) stockItem.addAttribute("t", getName());
+                  sell.add(stockItem);
+                  buy.add(stockItem);
+               }
+            }
+         } else if(key.equals("sell")) {
+            pattern = ((List)data.get("sell")).iterator();
 
-							sell.add(stockItem);
-						}
-					}
-				}
-				else
-					if ( key.equals("buy") )
-					{
-						for ( Object item : (List<Object>) data.get("buy") ) 
-						{
-							dB.normal(item);
-							if ( item instanceof String )
-							{
-								StockItem stockItem = new StockItem((String)item);
-								stockItem.addAttribute("pat", String.valueOf(priority));
-								if ( tier ) stockItem.addAttribute("t", getName());
-								
-								buy.add(stockItem);
-							}
-							else
-							{
-								StockItem stockItem = null;
-								for ( Map.Entry<String, List<String>> entry : ((Map<String, List<String>>) item).entrySet() )
-								{
-									dB.normal(entry.getKey());
-									dB.normal(entry.getValue().size());
-									stockItem = new StockItem(entry.getKey(), entry.getValue());
-								}
+            while(pattern.hasNext()) {
+               pat = pattern.next();
+               if(pat instanceof String) {
+                  stockItem = new StockItem((String)pat);
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
 
-								stockItem.addAttribute("pat", String.valueOf(priority));
-								if ( tier ) stockItem.addAttribute("t", getName());
+                  sell.add(stockItem);
+               } else {
+                  stockItem = null;
 
-								buy.add(stockItem);
-							}
-						}
-					}
-					else
-						if ( !tier && key.equals("inherit") )
-						{
-							for ( String pat : data.getStringList(key) )
-								inherits.put(pat, null);
-						}
-						else if ( !key.equals("type") && !key.equals("priority") )
-						{
-							ItemPattern pattern = new ItemPattern(key, true);
-							pattern.loadItems(data.getConfigurationSection(key));
+                  for(var9 = ((Map)pat).entrySet().iterator(); var9.hasNext(); stockItem = new StockItem((String)entry.getKey(), (List)entry.getValue())) {
+                     entry = (Entry)var9.next();
+                  }
 
-							tiers.put(key, pattern);
-						}
-		}
-		this.items.put("sell", sell);
-		this.items.put("buy", buy);
-	}
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
 
-	public List<StockItem> updateStock(List<StockItem> stock, String key, Player player)
-	{
-		for ( StockItem sItem : this.items.get(key) ) 
-			if ( !stock.contains(sItem) ) stock.add(sItem);
+                  sell.add(stockItem);
+               }
+            }
+         } else if(!key.equals("buy")) {
+            if(!this.tier && key.equals("inherit")) {
+               pattern = data.getStringList(key).iterator();
 
-		for ( Map.Entry<String, ItemPattern> e : tiers.entrySet() )
-			if ( Perms.hasPerm(player, "dtl.trader.tiers." + e.getKey()) )
-				e.getValue().updateStock(stock, key, player);
-		return stock;
-	}
+               while(pattern.hasNext()) {
+                  String pat1 = (String)pattern.next();
+                  this.inherits.put(pat1, (Object)null);
+               }
+            } else if(!key.equals("type") && !key.equals("priority")) {
+               ItemPattern pattern1 = new ItemPattern(key, true);
+               pattern1.loadItems(data.getConfigurationSection(key));
+               this.tiers.put(key, pattern1);
+            }
+         } else {
+            pattern = ((List)data.get("buy")).iterator();
+
+            while(pattern.hasNext()) {
+               pat = pattern.next();
+               dB.normal(new Object[]{pat});
+               if(pat instanceof String) {
+                  stockItem = new StockItem((String)pat);
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
+
+                  buy.add(stockItem);
+               } else {
+                  stockItem = null;
+
+                  for(var9 = ((Map)pat).entrySet().iterator(); var9.hasNext(); stockItem = new StockItem((String)entry.getKey(), (List)entry.getValue())) {
+                     entry = (Entry)var9.next();
+                     dB.normal(new Object[]{entry.getKey()});
+                     dB.normal(new Object[]{Integer.valueOf(((List)entry.getValue()).size())});
+                  }
+
+                  stockItem.addAttribute("pat", String.valueOf(this.priority));
+                  if(this.tier) {
+                     stockItem.addAttribute("t", this.getName());
+                  }
+
+                  buy.add(stockItem);
+               }
+            }
+         }
+      }
+
+      this.items.put("sell", sell);
+      this.items.put("buy", buy);
+   }
+
+   public List updateStock(List stock, String key, Player player) {
+      Iterator var4 = ((List)this.items.get(key)).iterator();
+
+      while(var4.hasNext()) {
+         StockItem e = (StockItem)var4.next();
+         if(!stock.contains(e)) {
+            stock.add(e);
+         }
+      }
+
+      var4 = this.tiers.entrySet().iterator();
+
+      while(var4.hasNext()) {
+         Entry e1 = (Entry)var4.next();
+         if(Perms.hasPerm(player, "dtl.trader.tiers." + (String)e1.getKey())) {
+            ((ItemPattern)e1.getValue()).updateStock(stock, key, player);
+         }
+      }
+
+      return stock;
+   }
 }

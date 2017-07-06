@@ -3,234 +3,237 @@ package net.dandielo.citizens.traders_v3.traders.patterns.types;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.entity.Player;
-
+import java.util.Map.Entry;
 import net.dandielo.citizens.traders_v3.bukkit.Perms;
 import net.dandielo.citizens.traders_v3.core.dB;
-import net.dandielo.citizens.traders_v3.core.dB.DebugLevel;
 import net.dandielo.citizens.traders_v3.traders.patterns.Pattern;
 import net.dandielo.citizens.traders_v3.traders.stock.StockItem;
 import net.dandielo.citizens.traders_v3.traders.transaction.CurrencyHandler;
 import net.dandielo.citizens.traders_v3.utils.items.attributes.Multiplier;
 import net.dandielo.core.items.serialize.ItemAttribute;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.entity.Player;
 
 public class PricePattern extends Pattern {
-	private Map<String, List<StockItem>> items;
-	private Map<String, PricePattern> inherits;
-	private Map<String, PricePattern> tiers;
 
-	public PricePattern(String name)
-	{
-		super(name, Type.PRICE);
+   private Map items;
+   private Map inherits;
+   private Map tiers;
 
-		//init all maps
-		items = new HashMap<String, List<StockItem>>();
-		inherits = new HashMap<String, PricePattern>();
-		tiers = new HashMap<String, PricePattern>();
-	}
 
-	public PricePattern(String name, boolean tier)
-	{
-		this(name);
+   public PricePattern(String name) {
+      super(name, Pattern.Type.PRICE);
+      this.items = new HashMap();
+      this.inherits = new HashMap();
+      this.tiers = new HashMap();
+   }
 
-		//set the tier to tier
-		this.tier = tier;
-	}
+   public PricePattern(String name, boolean tier) {
+      this(name);
+      this.tier = tier;
+   }
 
-	public void loadItems(ConfigurationSection data)
-	{
-		//create both buy and sell lists
-		List<StockItem> sell = new ArrayList<StockItem>();
-		List<StockItem> buy = new ArrayList<StockItem>();
+   public void loadItems(ConfigurationSection data) {
+      ArrayList sell = new ArrayList();
+      ArrayList buy = new ArrayList();
+      this.priority = data.getInt("priority", 0);
+      Iterator var4 = data.getKeys(false).iterator();
 
-		//load the patterns priority
-		priority = data.getInt("priority", 0);
+      while(var4.hasNext()) {
+         String key = (String)var4.next();
+         String pat;
+         StockItem stockItem;
+         Iterator pattern1;
+         if(key.equals("all")) {
+            pattern1 = data.getStringList(key).iterator();
 
-		//load the patterns items
-		for ( String key : data.getKeys(false) )
-		{
-			if ( key.equals("all") )
-			{
-				for ( String item : data.getStringList(key) )
-				{
-					StockItem stockItem = new StockItem(item);
+            while(pattern1.hasNext()) {
+               pat = (String)pattern1.next();
+               stockItem = new StockItem(pat);
+               if(this.tier) {
+                  stockItem.addAttribute("t", this.getName());
+               }
 
-					if ( tier ) stockItem.addAttribute("t", getName());
+               sell.add(stockItem);
+               buy.add(stockItem);
+            }
+         } else if(key.equals("sell")) {
+            pattern1 = data.getStringList(key).iterator();
 
-					sell.add(stockItem);
-					buy.add(stockItem);
-				}
-			}
-			else
-				if ( key.equals("sell") )
-				{
-					for ( String item : data.getStringList(key) )
-					{
-						StockItem stockItem = new StockItem(item);
+            while(pattern1.hasNext()) {
+               pat = (String)pattern1.next();
+               stockItem = new StockItem(pat);
+               if(this.tier) {
+                  stockItem.addAttribute("t", this.getName());
+               }
 
-						if ( tier ) stockItem.addAttribute("t", getName());
+               dB.spec(dB.DebugLevel.S2_MAGIC_POWA, new Object[]{"Added \"", stockItem, "\" item to the sell category"});
+               sell.add(stockItem);
+            }
+         } else if(key.equals("buy")) {
+            for(pattern1 = data.getStringList(key).iterator(); pattern1.hasNext(); buy.add(stockItem)) {
+               pat = (String)pattern1.next();
+               stockItem = new StockItem(pat);
+               if(this.tier) {
+                  stockItem.addAttribute("t", this.getName());
+               }
+            }
+         } else if(!this.tier && key.equals("inherit")) {
+            pattern1 = data.getStringList(key).iterator();
 
-						//specific debug info
-						dB.spec(DebugLevel.S2_MAGIC_POWA, "Added \"", stockItem, "\" item to the sell category");
-						
-						sell.add(stockItem);
-					}
-				}
-				else
-					if ( key.equals("buy") )
-					{
-						for ( String item : data.getStringList(key) )
-						{
-							StockItem stockItem = new StockItem(item);
+            while(pattern1.hasNext()) {
+               pat = (String)pattern1.next();
+               this.inherits.put(pat, (Object)null);
+            }
+         } else if(!key.equals("type") && !key.equals("priority")) {
+            PricePattern pattern = new PricePattern(key, true);
+            pattern.loadItems(data.getConfigurationSection(key));
+            this.tiers.put(key, pattern);
+         }
+      }
 
-							if ( tier ) stockItem.addAttribute("t", getName());
+      dB.spec(dB.DebugLevel.S2_MAGIC_POWA, new Object[]{"Added ", Integer.valueOf(sell.size()), " items to the sell category"});
+      dB.spec(dB.DebugLevel.S2_MAGIC_POWA, new Object[]{"Added ", Integer.valueOf(buy.size()), " items to the buy category"});
+      this.items.put("sell", sell);
+      this.items.put("buy", buy);
+   }
 
-							buy.add(stockItem);
-						}
-					}
-					else
-						if ( !tier && key.equals("inherit") )
-						{
-							for ( String pat : data.getStringList(key) )
-								inherits.put(pat, null);
-						}
-						else if ( !key.equals("type") && !key.equals("priority") )
-						{
-							PricePattern pattern = new PricePattern(key, true);
-							pattern.loadItems(data.getConfigurationSection(key));
+   public PricePattern.ItemCurrencies getItemCurrency(Player player, String stock, StockItem item) {
+      PricePattern.ItemCurrencies result = new PricePattern.ItemCurrencies();
+      Iterator var5 = this.inherits.entrySet().iterator();
 
-							tiers.put(key, pattern);
-						}
-		}
-		dB.spec(DebugLevel.S2_MAGIC_POWA, "Added ", sell.size(), " items to the sell category");
-		dB.spec(DebugLevel.S2_MAGIC_POWA, "Added ", buy.size(), " items to the buy category");
-		this.items.put("sell", sell);
-		this.items.put("buy", buy);
-	}
+      Entry e;
+      while(var5.hasNext()) {
+         e = (Entry)var5.next();
+         if(e.getValue() != null && Perms.hasPerm(player, "dtl.trader.patterns." + (String)e.getKey())) {
+            result.merge(((PricePattern)e.getValue()).getItemCurrency(player, stock, item));
+         }
+      }
 
-	private static class Pair<K, V> {
-	    private final K key;
-	    private V value;
+      result.resetPriorities();
+      var5 = ((List)this.items.get(stock)).iterator();
 
-	    public static <K, V> Pair<K, V> createPair(K key, V value) {
-	        return new Pair<K, V>(key, value);
-	    }
+      while(var5.hasNext()) {
+         StockItem e1 = (StockItem)var5.next();
+         int tempPriority = e1.priorityMatch(item);
+         if(e1.hasMultiplier()) {
+            result.multiplier((Multiplier)e1.getAttribute(Multiplier.class, false), Integer.valueOf(tempPriority + 1000 * this.priority));
+         }
 
-	    public Pair(K key, V value) {
-	        this.key = key;
-	        this.value = value;
-	    }
-	}
-	
-	public static class ItemCurrencies {
-		private Map<String, Pair<CurrencyHandler, Integer>> currencies = new HashMap<String, Pair<CurrencyHandler, Integer>>();
-		private Pair<Multiplier, Integer> multiplier = Pair.createPair(null, -1);
-		
-		public void merge(ItemCurrencies that)
-		{
-			if (multiplier.value <= that.multiplier.value)
-				multiplier = that.multiplier;
-			
-			for (Map.Entry<String, Pair<CurrencyHandler, Integer>> currency : that.currencies.entrySet())
-			{
-				Pair<CurrencyHandler, Integer> tempCurrency = currency.getValue();
-				Pair<CurrencyHandler, Integer> mappedCurrency = currencies.get(currency.getKey());
-				
-				if (mappedCurrency != null)
-				{
-					if (mappedCurrency.value <= tempCurrency.value)
-					{
-						currencies.put(currency.getKey(), tempCurrency);
-					}
-				}
-				else
-				{
-					currencies.put(currency.getKey(), tempCurrency);
-				}
-			}
-		}
-		
-		public void merge(CurrencyHandler handler, Integer priority) {
-			Pair<CurrencyHandler, Integer> mappedCurrency = currencies.get(handler.getName());
+         Iterator var8 = e1.getAttributes("p").iterator();
 
-			if (mappedCurrency != null)
-			{
-				if (mappedCurrency.value <= priority)
-				{
-					currencies.put(handler.getName(), Pair.createPair(handler, priority));
-				}
-			}
-			else if (priority >= 0)
-			{
-				currencies.put(handler.getName(), Pair.createPair(handler, priority));
-			}
-		}
-		
-		public void multiplier(Multiplier attr, Integer priority)
-		{
-			if (multiplier.value <= priority)
-				multiplier = Pair.createPair(attr, priority);
-		}
-		
-		public void resetPriorities() {
-			multiplier.value = -1;
-			for (Map.Entry<String, Pair<CurrencyHandler, Integer>> currency : currencies.entrySet())
-				currency.getValue().value = -1;
-		}
-		
-		public Set<CurrencyHandler> getCurrencies() {
-			Set<CurrencyHandler> result = new HashSet<CurrencyHandler>();
-			for (Pair<CurrencyHandler, Integer> entry : currencies.values())
-				result.add(entry.key);
-			return result;
-		}
-		
-		public double getMultiplier() {
-			return multiplier.key == null ? 1.0 : multiplier.key.getMultiplier();
-		}
-	}
-	
-	public ItemCurrencies getItemCurrency(Player player, String stock, StockItem item)
-	{
-		ItemCurrencies result = new ItemCurrencies();
+         while(var8.hasNext()) {
+            ItemAttribute patternAttrib = (ItemAttribute)var8.next();
+            if(patternAttrib instanceof CurrencyHandler) {
+               result.merge((CurrencyHandler)patternAttrib, Integer.valueOf(tempPriority + 1000 * this.priority));
+            }
+         }
+      }
 
-		//check inherited
-		for (Map.Entry<String, PricePattern> e : inherits.entrySet())
-		{
-			if (e.getValue() != null 
-					&& Perms.hasPerm(player, "dtl.trader.patterns." + e.getKey()))
-			    result.merge(e.getValue().getItemCurrency(player, stock, item));
-		}
-		
-		//reset priorities before we continue
-		result.resetPriorities();
-		//dB.spec(DebugLevel.CURRENCY, "Stock size: ", items.get(stock).size());
-		
-		for (StockItem patternItem : items.get(stock))
-		{
-//			dB.spec(DebugLevel.CURRENCY, "Item: ", patternItem.toString());
-			int tempPriority = patternItem.priorityMatch(item);
-//			dB.spec(DebugLevel.CURRENCY, "Priority: ", tempPriority);
-			if (patternItem.hasMultiplier())
-				result.multiplier(patternItem.getAttribute(Multiplier.class, false), tempPriority + 1000 * priority);
-			for (ItemAttribute patternAttrib : patternItem.getAttributes("p"))
-				if (patternAttrib instanceof CurrencyHandler)
-					result.merge((CurrencyHandler) patternAttrib, tempPriority + 1000 * priority);
-		}
-		
-		//override with tiers
-		for (Map.Entry<String, PricePattern> e : tiers.entrySet())
-		{
-			if (Perms.hasPerm(player, "dtl.trader.tiers." + e.getKey()))
-			{
-			    result.merge(e.getValue().getItemCurrency(player, stock, item));
-			}
-		}		
-		return result;
-	}
+      var5 = this.tiers.entrySet().iterator();
+
+      while(var5.hasNext()) {
+         e = (Entry)var5.next();
+         if(Perms.hasPerm(player, "dtl.trader.tiers." + (String)e.getKey())) {
+            result.merge(((PricePattern)e.getValue()).getItemCurrency(player, stock, item));
+         }
+      }
+
+      return result;
+   }
+
+   private static class Pair {
+
+      private final Object key;
+      private Object value;
+
+
+      public static PricePattern.Pair createPair(Object key, Object value) {
+         return new PricePattern.Pair(key, value);
+      }
+
+      public Pair(Object key, Object value) {
+         this.key = key;
+         this.value = value;
+      }
+   }
+
+   public static class ItemCurrencies {
+
+      private Map currencies = new HashMap();
+      private PricePattern.Pair multiplier = PricePattern.Pair.createPair((Object)null, Integer.valueOf(-1));
+
+
+      public void merge(PricePattern.ItemCurrencies that) {
+         if(((Integer)this.multiplier.value).intValue() <= ((Integer)that.multiplier.value).intValue()) {
+            this.multiplier = that.multiplier;
+         }
+
+         Iterator var2 = that.currencies.entrySet().iterator();
+
+         while(var2.hasNext()) {
+            Entry currency = (Entry)var2.next();
+            PricePattern.Pair tempCurrency = (PricePattern.Pair)currency.getValue();
+            PricePattern.Pair mappedCurrency = (PricePattern.Pair)this.currencies.get(currency.getKey());
+            if(mappedCurrency != null) {
+               if(((Integer)mappedCurrency.value).intValue() <= ((Integer)tempCurrency.value).intValue()) {
+                  this.currencies.put(currency.getKey(), tempCurrency);
+               }
+            } else {
+               this.currencies.put(currency.getKey(), tempCurrency);
+            }
+         }
+
+      }
+
+      public void merge(CurrencyHandler handler, Integer priority) {
+         PricePattern.Pair mappedCurrency = (PricePattern.Pair)this.currencies.get(handler.getName());
+         if(mappedCurrency != null) {
+            if(((Integer)mappedCurrency.value).intValue() <= priority.intValue()) {
+               this.currencies.put(handler.getName(), PricePattern.Pair.createPair(handler, priority));
+            }
+         } else if(priority.intValue() >= 0) {
+            this.currencies.put(handler.getName(), PricePattern.Pair.createPair(handler, priority));
+         }
+
+      }
+
+      public void multiplier(Multiplier attr, Integer priority) {
+         if(((Integer)this.multiplier.value).intValue() <= priority.intValue()) {
+            this.multiplier = PricePattern.Pair.createPair(attr, priority);
+         }
+
+      }
+
+      public void resetPriorities() {
+         this.multiplier.value = Integer.valueOf(-1);
+         Iterator var1 = this.currencies.entrySet().iterator();
+
+         while(var1.hasNext()) {
+            Entry currency = (Entry)var1.next();
+            ((PricePattern.Pair)currency.getValue()).value = Integer.valueOf(-1);
+         }
+
+      }
+
+      public Set getCurrencies() {
+         HashSet result = new HashSet();
+         Iterator var2 = this.currencies.values().iterator();
+
+         while(var2.hasNext()) {
+            PricePattern.Pair entry = (PricePattern.Pair)var2.next();
+            result.add(entry.key);
+         }
+
+         return result;
+      }
+
+      public double getMultiplier() {
+         return this.multiplier.key == null?1.0D:((Multiplier)this.multiplier.key).getMultiplier();
+      }
+   }
 }

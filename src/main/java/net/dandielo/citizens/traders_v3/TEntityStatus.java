@@ -1,90 +1,62 @@
 package net.dandielo.citizens.traders_v3;
 
-import static net.dandielo.citizens.traders_v3.TEntityStatus.StatusType.*;
 
-public enum TEntityStatus
-{
-	/*
-	 * Trader status declarations
-	 */
-	SELL(TRADER, "sell"), 
-	BUY(TRADER, "buy"), 
-	SELL_AMOUNTS(TRADER, "amounts"),
-	
-	MANAGE_SELL(TRADER, "mSell"), 
-	MANAGE_BUY(TRADER, "mBuy"), 
-	MANAGE_AMOUNTS(TRADER, "mAmounts"),
-	MANAGE_PRICE(TRADER, "mPrice"),
-	MANAGE_LIMIT(TRADER, "mLimit"), 
-	MANAGE_PLIMIT(TRADER, "mpLimit"), 
-	MANAGE_UNLOCKED(TRADER, "mUnlocked"),
-	;
-	
-	
-	StatusType type;
-	String statusName;
-	
-	/**
-	 * Status constructor for each core tNpc  
-	 * @param type
-	 * the status type
-	 * @param statusName
-	 * the status name
-	 */
-	TEntityStatus(StatusType type, String statusName)
-	{
-		this.type = type;
-		this.statusName = statusName;
-	}
-	
-	/**
-	 * as to string just return the status name
-	 */
-	@Override
-	public String toString()
-	{
-		return statusName;
-	}
-    
-	/**
-	 * The type of a tNpc status determines what more specific tNpc type uses what status.  
-	 * @author dandielo
-	 *
-	 */
-	public static enum StatusType
-    {
-    	TRADER
-    }
-	
-	/*
-	 * Trader methods
-	 */
-	public boolean inManagementMode()
-	{
-		return !(this.equals(SELL) || this.equals(BUY) || this.equals(SELL_AMOUNTS)); 
-	}
-	
-	public static TEntityStatus parseBaseManageStatus(TEntityStatus oldStatus, TEntityStatus newStatus)
-	{
-		return newStatus.equals(MANAGE_SELL) || newStatus.equals(MANAGE_BUY) ||
-				newStatus.equals(SELL) || newStatus.equals(BUY) ? newStatus : oldStatus;
-	}
-	
-	public static TEntityStatus baseManagementStatus(String status)
-	{
-		if ( MANAGE_SELL.name().toLowerCase().contains(status) )
-			return MANAGE_SELL;
-		return MANAGE_BUY;
-	}
-	
-	public static TEntityStatus baseStatus(String status)
-	{
-		if ( SELL.name().toLowerCase().equals(status) )
-			return SELL;
-		return BUY;
-	}
+public enum TEntityStatus {
 
-	public String asStock() {
-		return this.equals(BUY) || this.equals(MANAGE_BUY) ? "buy" : "sell";
-	}
+   SELL("SELL", 0, TEntityStatus.StatusType.TRADER, "sell"),
+   BUY("BUY", 1, TEntityStatus.StatusType.TRADER, "buy"),
+   SELL_AMOUNTS("SELL_AMOUNTS", 2, TEntityStatus.StatusType.TRADER, "amounts"),
+   MANAGE_SELL("MANAGE_SELL", 3, TEntityStatus.StatusType.TRADER, "mSell"),
+   MANAGE_BUY("MANAGE_BUY", 4, TEntityStatus.StatusType.TRADER, "mBuy"),
+   MANAGE_AMOUNTS("MANAGE_AMOUNTS", 5, TEntityStatus.StatusType.TRADER, "mAmounts"),
+   MANAGE_PRICE("MANAGE_PRICE", 6, TEntityStatus.StatusType.TRADER, "mPrice"),
+   MANAGE_LIMIT("MANAGE_LIMIT", 7, TEntityStatus.StatusType.TRADER, "mLimit"),
+   MANAGE_PLIMIT("MANAGE_PLIMIT", 8, TEntityStatus.StatusType.TRADER, "mpLimit"),
+   MANAGE_UNLOCKED("MANAGE_UNLOCKED", 9, TEntityStatus.StatusType.TRADER, "mUnlocked");
+   TEntityStatus.StatusType type;
+   String statusName;
+   // $FF: synthetic field
+   private static final TEntityStatus[] $VALUES = new TEntityStatus[]{SELL, BUY, SELL_AMOUNTS, MANAGE_SELL, MANAGE_BUY, MANAGE_AMOUNTS, MANAGE_PRICE, MANAGE_LIMIT, MANAGE_PLIMIT, MANAGE_UNLOCKED};
+
+
+   private TEntityStatus(String var1, int var2, TEntityStatus.StatusType type, String statusName) {
+      this.type = type;
+      this.statusName = statusName;
+   }
+
+   public String toString() {
+      return this.statusName;
+   }
+
+   public boolean inManagementMode() {
+      return !this.equals(SELL) && !this.equals(BUY) && !this.equals(SELL_AMOUNTS);
+   }
+
+   public static TEntityStatus parseBaseManageStatus(TEntityStatus oldStatus, TEntityStatus newStatus) {
+      return !newStatus.equals(MANAGE_SELL) && !newStatus.equals(MANAGE_BUY) && !newStatus.equals(SELL) && !newStatus.equals(BUY)?oldStatus:newStatus;
+   }
+
+   public static TEntityStatus baseManagementStatus(String status) {
+      return MANAGE_SELL.name().toLowerCase().contains(status)?MANAGE_SELL:MANAGE_BUY;
+   }
+
+   public static TEntityStatus baseStatus(String status) {
+      return SELL.name().toLowerCase().equals(status)?SELL:BUY;
+   }
+
+   public String asStock() {
+      return !this.equals(BUY) && !this.equals(MANAGE_BUY)?"sell":"buy";
+   }
+
+
+   public static enum StatusType {
+
+      TRADER("TRADER", 0);
+      // $FF: synthetic field
+      private static final TEntityStatus.StatusType[] $VALUES = new TEntityStatus.StatusType[]{TRADER};
+
+
+      private StatusType(String var1, int var2) {}
+
+   }
 }
