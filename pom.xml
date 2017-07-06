@@ -3,18 +3,16 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>net.dandielo</groupId>
 	<artifactId>dtlTraders</artifactId>
-	<version>3.4-SNAPSHOT</version>
+	<version>3.5.4-SNAPSHOT</version>
 	<name>dtlTraders</name>
 	<description>Trader trait for Citizens 2</description>
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<craftbukkit.version>1.8.7-R0.1-SNAPSHOT</craftbukkit.version>
-		<citizens.version>2.0.13-SNAPSHOT</citizens.version>
-		<vault.version>1.4.1</vault.version>
-		<denizen.version>0.9.3-SNAPSHOT</denizen.version>
-		<stats.version>1.2.0-SNAPSHOT</stats.version>
-		<core.version>1.0-SNAPSHOT</core.version>
+		<craftbukkit.version>1.12-R0.1-SNAPSHOT</craftbukkit.version>
+		<citizens.version>2.0.22-SNAPSHOT</citizens.version>
+		<vault.version>1.5.6</vault.version>
+		<denizen.version>1.0.2-SNAPSHOT</denizen.version>
 		<build.number>Unknown</build.number>
 		<BUILD_NUMBER>Unknown</BUILD_NUMBER>
 	</properties>
@@ -37,9 +35,9 @@
 	<!-- Repositories -->
 	<repositories>
 		<repository>
-		        <name>Spigot Repository</name>
-		        <id>spigot-repo</id>
-		        <url>https://hub.spigotmc.org/nexus/content/repositories/snapshots</url>
+			<name>Spigot Repository</name>
+			<id>spigot-repo</id>
+			<url>https://hub.spigotmc.org/nexus/content/repositories/snapshots</url>
 		</repository>
 		<repository>
 			<name>Bukkit repository</name>
@@ -54,33 +52,9 @@
 		<repository>
 			<name>Vault repository</name>
 			<id>vault-repo</id>
-			<url>http://nexus.theyeticave.net/content/repositories/pub_releases</url>
-		</repository>
-		<repository>
-		        <name>Dandielo.NET repository</name>
-			<id>dtl-repo</id>
-			<url>http://repo.dandielo.net/content/groups/public</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
+			<url>http://nexus.hc.to/content/repositories/pub_releases</url>
 		</repository>
 	</repositories>
-
-	<pluginRepositories>
-		<pluginRepository>
-			<id>upstream</id>
-			<url>${env.Jenkins.Repository}</url>
-			<releases>
-				<enabled>true</enabled>
-			</releases>
-			<snapshots>
-				<enabled>true</enabled>
-			</snapshots>
-		</pluginRepository>
-	</pluginRepositories>
 
 	<!-- Dependencies -->
 	<dependencies>
@@ -109,18 +83,6 @@
 			<groupId>net.aufdemrand</groupId>
 			<artifactId>denizen</artifactId>
 			<version>${denizen.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>net.dandielo</groupId>
-			<artifactId>dtlStats</artifactId>
-			<version>${stats.version}</version>
-			<scope>provided</scope>
-		</dependency>
-		<dependency>
-			<groupId>net.dandielo</groupId>
-			<artifactId>dtlCore</artifactId>
-			<version>${core.version}</version>
 			<scope>provided</scope>
 		</dependency>
 	</dependencies>

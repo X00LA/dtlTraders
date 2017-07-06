@@ -1,7 +1,7 @@
 package net.dandielo.citizens.traders_v3.utils.items.attributes;
 
+import java.util.Iterator;
 import java.util.List;
-
 import net.dandielo.citizens.traders_v3.TEntityStatus;
 import net.dandielo.citizens.traders_v3.core.locale.LocaleManager;
 import net.dandielo.citizens.traders_v3.traders.limits.LimitManager;
@@ -10,147 +10,143 @@ import net.dandielo.citizens.traders_v3.utils.items.StockItemAttribute;
 import net.dandielo.core.items.dItem;
 import net.dandielo.core.items.serialize.Attribute;
 
-@Attribute(name = "Limit", key = "l", standalone = true, priority = 0)
+@Attribute(
+   name = "Limit",
+   key = "l",
+   standalone = true,
+   priority = 0
+)
 public class Limit extends StockItemAttribute {
-	private String id;
-	private int limit, plimit;
-	private long timeout, ptimeout;
 
-	public Limit(dItem item, String key)
-	{
-		super(item, key);
-	}
-	
-	public String getID()
-	{
-		return id;
-	}
-	
-	//Global limits and timeouts
-	public int getLimit()
-	{
-		return limit;
-	}
-	public long getTimeout()
-	{
-		return timeout;
-	}
-	public void increaseLimit(int l)
-	{
-		limit += l;
-	}
-	public void decreaseLimit(int l)
-	{
-		limit = limit - l < 0 ? 0 : limit - l;
-	}
-	public void increaseTimeout(long t)
-	{
-		timeout += t;
-	}
-	public void decreaseTimeout(long t)
-	{
-		timeout = timeout - t < 0 ? 0 : timeout - t;
-	}
-	
-	//Player limits and timeouts
-	public int getPlayerLimit()
-	{
-		return limit;
-	}
-	public long getPlayerTimeout()
-	{
-		return timeout;
-	}
-	public void increasePlayerLimit(int l)
-	{
-		limit += l;
-	}
-	public void decreasePlayerLimit(int l)
-	{
-		limit = limit - l < 0 ? 0 : limit - l;
-	}
-	public void increasePlayerTimeout(long t)
-	{
-		timeout += t;
-	}
-	public void decreasePlayerTimeout(long t)
-	{
-		timeout = timeout - t < 0 ? 0 : timeout - t;
-	}
-	
-	@Override
-	public boolean deserialize(String raw)
-	{
-		String[] data = raw.split("/");
-		
-		try
-		{
-			id = data[0];
-			limit = Integer.parseInt(data[1]);
-			timeout = LimitManager.parseTimeout(data[2]);
-			
-			if (data.length == 5)
-			{
-				plimit = Integer.parseInt(data[3]);
-				ptimeout = LimitManager.parseTimeout(data[4]);
-			}
-		}
-		catch(NumberFormatException e)
-		{
-			return false;
-		}
-		return true;
-	}
+   private String id;
+   private int limit;
+   private int plimit;
+   private long timeout;
+   private long ptimeout;
 
-	@Override
-	public String serialize()
-	{
-		String result = id + "/" + limit + "/" + LimitManager.timeoutString(timeout);
-		if (plimit != 0)
-			result += "/" + plimit + "/" + LimitManager.timeoutString(ptimeout);
-		return result;
-	}
 
-	@Override
-	public void getDescription(TEntityStatus status, List<String> lore)
-	{
-		if ( !status.inManagementMode() ) return;
+   public Limit(dItem item, String key) {
+      super(item, key);
+   }
 
-		//add the lore to the item
-		for ( String pLore : LocaleManager.locale.getLore("item-rawLimit") )
-			lore.add(pLore.replace("{limit}", String.valueOf(limit)).replace("{timeout}", LimitManager.timeoutString(timeout)));
-	}
-	
-	//TODO: check this one?
-	public static List<String> loreRequest(String player, StockItem item, List<String> lore, TEntityStatus status)
-	{
-		LimitManager limits = LimitManager.self;
-		
-		if (!item.hasAttribute(Limit.class)) return lore;
+   public String getID() {
+      return this.id;
+   }
 
-		//add the limit lore
-		for ( String pLore : LocaleManager.locale.getLore("item-" + status.asStock() + "-limit") )
-		{
-			lore.add(
-					pLore
-					.replace("{limit-total}", String.valueOf(limits.getTotalLimit(item)))
-					.replace("{limit-used}",  String.valueOf(Math.abs(limits.getTotalUsed(item))))
-					.replace("{limit-avail}", String.valueOf(limits.getTotalLimit(item)-Math.abs(limits.getTotalUsed(item))))
-			);
-		}
-		//add the player limit lore
-		for ( String pLore : LocaleManager.locale.getLore("item-" + status.asStock() + "-plimit") )
-		{
-			lore.add(
-					pLore
-					.replace("{limit-total}", String.valueOf(limits.getTotalLimit(item)))
-					.replace("{limit-used}",  String.valueOf(Math.abs(limits.getTotalUsed(item))))
-					.replace("{limit-avail}", String.valueOf(limits.getTotalLimit(item)-Math.abs(limits.getTotalUsed(item))))
-			);
-		}
-		
-		//return the result
-		return lore;
-	}
+   public int getLimit() {
+      return this.limit;
+   }
 
+   public long getTimeout() {
+      return this.timeout;
+   }
+
+   public void increaseLimit(int l) {
+      this.limit += l;
+   }
+
+   public void decreaseLimit(int l) {
+      this.limit = this.limit - l < 0?0:this.limit - l;
+   }
+
+   public void increaseTimeout(long t) {
+      this.timeout += t;
+   }
+
+   public void decreaseTimeout(long t) {
+      this.timeout = this.timeout - t < 0L?0L:this.timeout - t;
+   }
+
+   public int getPlayerLimit() {
+      return this.limit;
+   }
+
+   public long getPlayerTimeout() {
+      return this.timeout;
+   }
+
+   public void increasePlayerLimit(int l) {
+      this.limit += l;
+   }
+
+   public void decreasePlayerLimit(int l) {
+      this.limit = this.limit - l < 0?0:this.limit - l;
+   }
+
+   public void increasePlayerTimeout(long t) {
+      this.timeout += t;
+   }
+
+   public void decreasePlayerTimeout(long t) {
+      this.timeout = this.timeout - t < 0L?0L:this.timeout - t;
+   }
+
+   public boolean deserialize(String raw) {
+      String[] data = raw.split("/");
+
+      try {
+         this.id = data[0];
+         this.limit = Integer.parseInt(data[1]);
+         if(data.length > 2) {
+            this.timeout = LimitManager.parseTimeout(data[2]);
+            if(data.length == 5) {
+               this.plimit = Integer.parseInt(data[3]);
+               this.ptimeout = LimitManager.parseTimeout(data[4]);
+            }
+         }
+
+         return true;
+      } catch (NumberFormatException var4) {
+         return false;
+      }
+   }
+
+   public String serialize() {
+      String result = this.id + "/" + this.limit;
+      if(this.timeout != 0L) {
+         result = result + "/" + LimitManager.timeoutString(this.timeout);
+      }
+
+      if(this.plimit != 0) {
+         result = result + "/" + this.plimit + "/" + LimitManager.timeoutString(this.ptimeout);
+      }
+
+      return result;
+   }
+
+   public void getDescription(TEntityStatus status, List lore) {
+      if(status.inManagementMode()) {
+         Iterator var3 = LocaleManager.locale.getLore("item-rawLimit").iterator();
+
+         while(var3.hasNext()) {
+            String pLore = (String)var3.next();
+            lore.add(pLore.replace("{limit}", String.valueOf(this.limit)).replace("{timeout}", LimitManager.timeoutString(this.timeout)));
+         }
+
+      }
+   }
+
+   public static List loreRequest(String player, StockItem item, List lore, TEntityStatus status) {
+      LimitManager limits = LimitManager.self;
+      if(!item.hasAttribute(Limit.class)) {
+         return lore;
+      } else {
+         Iterator var5 = LocaleManager.locale.getLore("item-" + status.asStock() + "-limit").iterator();
+
+         String pLore;
+         while(var5.hasNext()) {
+            pLore = (String)var5.next();
+            lore.add(pLore.replace("{limit-total}", String.valueOf(limits.getTotalLimit(item))).replace("{limit-used}", String.valueOf(Math.abs(limits.getTotalUsed(item)))).replace("{limit-avail}", String.valueOf(limits.getTotalLimit(item) - (long)Math.abs(limits.getTotalUsed(item)))));
+         }
+
+         var5 = LocaleManager.locale.getLore("item-" + status.asStock() + "-plimit").iterator();
+
+         while(var5.hasNext()) {
+            pLore = (String)var5.next();
+            lore.add(pLore.replace("{limit-total}", String.valueOf(limits.getTotalLimit(item))).replace("{limit-used}", String.valueOf(Math.abs(limits.getTotalUsed(item)))).replace("{limit-avail}", String.valueOf(limits.getTotalLimit(item) - (long)Math.abs(limits.getTotalUsed(item)))));
+         }
+
+         return lore;
+      }
+   }
 }

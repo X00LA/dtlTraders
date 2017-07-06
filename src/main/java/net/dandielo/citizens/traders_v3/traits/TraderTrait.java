@@ -8,65 +8,43 @@ import net.dandielo.citizens.traders_v3.traders.stock.Stock;
 import net.dandielo.citizens.traders_v3.traders.stock.StockTrader;
 
 public class TraderTrait extends Trait {
-	// tNpc manager
-	//private tNpcManager manager = DtlTraders.tNPCManager();
-	
-	//settings
-	private Settings settings;
-	private Stock stock;
-	
-	public TraderTrait() {
-		super("trader");
-		settings = new Settings(this.npc);
-	}
-	
-	//get settings for this Trader NPC
-	public Settings getSettings() {
-		return settings;
-	}
 
-	public String getType() {
-		return settings.getType();
-	}
-	
-	public Stock getStock() {
-		return stock;
-	}
+   private Settings settings;
+   private Stock stock;
 
-	//events
-	@Override
-	public void onRemove()
-	{
-		
-	}
-	
-	@Override
-	public void onAttach()
-	{
-		//debug info
-		dB.info("Trader trait attached to:", npc.getName());
-		
-		settings = new Settings(this.npc);
-		stock = new StockTrader(settings);
-	}
-	
-	@Override
-	public void load(DataKey data)
-	{
-		//load all settings
-		settings.load(data);
-		
-		//create and load the stock
-		stock.load(data);
-	}
 
-	@Override
-	public void save(DataKey data)
-	{
-		//save settings
-		settings.save(data);
-		
-		//save the stock
-		stock.save(data);
-	}
+   public TraderTrait() {
+      super("trader");
+      this.settings = new Settings(this.npc);
+   }
+
+   public Settings getSettings() {
+      return this.settings;
+   }
+
+   public String getType() {
+      return this.settings.getType();
+   }
+
+   public Stock getStock() {
+      return this.stock;
+   }
+
+   public void onRemove() {}
+
+   public void onAttach() {
+      dB.info(new Object[]{"Trader trait attached to:", this.npc.getName()});
+      this.settings = new Settings(this.npc);
+      this.stock = new StockTrader(this.settings);
+   }
+
+   public void load(DataKey data) {
+      this.settings.load(data);
+      this.stock.load(data);
+   }
+
+   public void save(DataKey data) {
+      this.settings.save(data);
+      this.stock.save(data);
+   }
 }

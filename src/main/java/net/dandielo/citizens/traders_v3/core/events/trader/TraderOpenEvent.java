@@ -1,29 +1,25 @@
 package net.dandielo.citizens.traders_v3.core.events.trader;
 
+import net.dandielo.citizens.traders_v3.core.events.TraderEvent;
+import net.dandielo.citizens.traders_v3.traders.Trader;
 import org.bukkit.entity.Player;
 import org.bukkit.event.HandlerList;
 
-import net.dandielo.citizens.traders_v3.core.events.TraderEvent;
-import net.dandielo.citizens.traders_v3.traders.Trader;
-
 public class TraderOpenEvent extends TraderEvent {
 
-	public TraderOpenEvent(Trader npc, Player player) {
-		super(npc, player);
-	}
+   private static final HandlerList handlers = new HandlerList();
 
-	/**
-	 * Handlers
-	 */
-	private static final HandlerList handlers = new HandlerList();
 
-	@Override
-	public HandlerList getHandlers() {
-		return handlers;
-	}
+   public TraderOpenEvent(Trader npc, Player player) {
+      super(npc, player);
+   }
 
-	public static HandlerList getHandlerList() {
-		return handlers;
-	}
+   public HandlerList getHandlers() {
+      return handlers;
+   }
+
+   public static HandlerList getHandlerList() {
+      return handlers;
+   }
 
 }
